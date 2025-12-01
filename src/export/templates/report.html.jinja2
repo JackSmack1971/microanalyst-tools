@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microanalyst Report: {{ token_symbol|upper }}</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --panel-bg: #1e1e1e;
+            --border-color: #333;
+            --accent-color: #00bcd4;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --danger-color: #f44336;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        header {
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        h1, h2, h3 {
+            color: var(--accent-color);
+        }
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            color: var(--accent-color);
+        }
+        .metric-value {
+            font-family: 'Consolas', monospace;
+            font-weight: bold;
+        }
+        .signal-high { color: var(--danger-color); }
+        .signal-warn { color: var(--warning-color); }
+        .signal-ok { color: var(--success-color); }
+        
+        .footer {
+            text-align: center;
+            font-size: 0.8em;
+            color: #888;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Microanalyst Report: {{ token_symbol|upper }}</h1>
+            <p>Generated on {{ timestamp }}</p>
+        </header>
+
+        <div class="panel">
+            <h2>Token Overview</h2>
+            <div class="grid">
+                <div>
+                    <strong>Name:</strong> {{ overview.name }}<br>
+                    <strong>Symbol:</strong> {{ overview.symbol|upper }}<br>
+                    <strong>Rank:</strong> #{{ overview.rank }}
+                </div>
+                <div>
+                    <strong>Price:</strong> ${{ overview.price }}<br>
+                    <strong>Market Cap:</strong> ${{ overview.market_cap }}<br>
+                    <strong>24h Volume:</strong> ${{ overview.volume_24h }}
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Quantitative Metrics</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                        <th>Signal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for metric in metrics %}
+                    <tr>
+                        <td>{{ metric.name }}</td>
+                        <td class="metric-value">{{ metric.value }}</td>
+                        <td class="{{ metric.signal_class }}">{{ metric.signal }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="panel">
+            <h2>Risk Factors</h2>
+            {% if risks %}
+            <ul>
+                {% for risk in risks %}
+                <li style="color: var(--danger-color)"><strong>{{ risk.type }}:</strong> {{ risk.value }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="color: var(--success-color)">No critical risks detected.</p>
+            {% endif %}
+        </div>
+
+        <div class="footer">
+            <p>Data Sources: CoinGecko, Binance</p>
+            <p>Confidence Score: {{ confidence_score }}%</p>
+        </div>
+    </div>
+</body>
+</html>
