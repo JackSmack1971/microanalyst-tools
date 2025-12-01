@@ -1,0 +1,17 @@
+# Default Configuration for MicroAnalyst Tools
+
+defaults:
+  days: 30
+  output_format: "terminal"
+  theme: "default"
+
+providers:
+  binance:
+    rate_limit_ms: 100
+  coingecko:
+    rate_limit_ms: 1500
+
+display:
+  show_warnings: true
+  compact_mode: false
+  decimal_precision: 2
