@@ -1,5 +1,8 @@
 from datetime import datetime
 from typing import Dict, Any
+from rich.table import Table
+from src.cli.theme import get_metric_color, SEVERITY_STYLES
+from src.cli.formatters import format_percentage, format_currency, format_number
 
 def generate_report(
     token_symbol: str,
@@ -78,3 +81,89 @@ Data Sources: CoinGecko (last updated: {cg_data.get('last_updated', 'N/A')}) + B
 - Data Confidence: {'Low' if vol_delta > 50 else 'High'}
 """
     return report
+
+def generate_metric_table(metrics: Dict[str, float]) -> Table:
+    """
+    Generates a Rich Table for quantitative metrics with semantic coloring.
+    
+    Args:
+        metrics: Dictionary of metric values (e.g., {'volatility': 0.15, 'spread': 0.005})
+        
+    Returns:
+        Table: Rich Table object ready for rendering.
+    """
+    table = Table(title="Quantitative Metrics", border_style="blue")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", justify="right")
+    table.add_column("Signal", justify="center")
+    
+    # Define metrics to display and their formatting logic
+    # Key: (Display Name, Metric Type for Theme, Formatter)
+    metric_defs = [
+        ("Volatility (CV)", "volatility", lambda v: format_number(v, 2)),
+        ("Spread", "spread", lambda v: format_percentage(v / 100.0, 2)),
+        ("Volume Delta", "volume_delta", lambda v: format_percentage(v / 100.0, 1)),
+        ("Imbalance", "imbalance", lambda v: format_number(v, 2))
+    ]
+    
+    # Note on Volume Delta: In main.py, it is calculated as percentage (e.g. 50.0 for 50%).
+    # format_percentage expects ratio (0.5 for 50%).
+    # So we need to divide by 100 if it's a percentage > 1? Or just assume it's a percentage?
+    # Let's look at main.py: `vol_delta = ((abs(cg_vol - bin_vol)) / cg_vol * 100)` -> returns 0..100+
+    # So we should divide by 100 for format_percentage.
+    
+    # Note on Spread: In main.py: `spread = f"{liquidity_metrics.get('spread_pct', 0.0):.2f}%"`
+    # If spread_pct is 0.5 (meaning 0.5%), then format_percentage(0.5) -> 50%. That's wrong.
+    # If spread_pct is 0.005 (meaning 0.5%), then format_percentage(0.005) -> 0.50%.
+    # We need to know what the metrics actually contain.
+    # main.py: `liquidity_metrics = calculate_liquidity_metrics(depth)`
+    # We don't see the implementation of calculate_liquidity_metrics.
+    # However, standard practice: spread is usually small.
+    # Let's assume the metrics passed to this function are RAW values.
+    # If main.py formats them as f"{val:.2f}%", it implies val is 0.5 for 0.5%? No, usually 0.5 means 50% in f-string unless it's just a number.
+    # Wait, f"{0.5:.2f}%" -> "0.50%".
+    # So if spread is 0.5, it prints "0.50%".
+    # So spread is likely in percentage points (0.5 = 0.5%).
+    # format_percentage(0.5) -> "50.00%".
+    # So we need to divide spread by 100 too if we use format_percentage?
+    # OR we just use format_number and add % manually?
+    # formatters.format_percentage expects ratio.
+    # Let's stick to format_percentage(v/100) if v is in percentage points.
+    
+    for label, metric_type, formatter in metric_defs:
+        value = metrics.get(metric_type)
+        if value is None:
+            continue
+            
+        # Special handling for percentage inputs vs ratios
+        # We'll assume metrics are passed as they are in main.py (likely percentage points for some)
+        # But for safety in this specific task, let's look at theme.py thresholds.
+        # Volatility: high 0.12. This looks like a ratio (12%).
+        # Spread: high 0.5. This looks like percentage points (0.5%).
+        # Volume Delta: critical 50.0. This looks like percentage points (50%).
+        
+        # So:
+        # Volatility: Ratio. format_number(0.12) -> 0.12. Correct.
+        # Spread: Percentage Points. format_percentage(0.5/100) -> 0.50%.
+        # Volume Delta: Percentage Points. format_percentage(50/100) -> 50.00%.
+        
+        formatted_val = "N/A"
+        formatted_val = formatter(value)
+
+        color = get_metric_color(metric_type, value)
+        
+        # Determine signal icon
+        signal = ""
+        if color == SEVERITY_STYLES["critical"]:
+            signal = "⚠️ HIGH"
+        elif color == SEVERITY_STYLES["warning"]:
+            signal = "⚠️ WARN"
+        elif color == SEVERITY_STYLES["healthy"]:
+            signal = "✓ OK"
+        else:
+            signal = "-"
+            
+        table.add_row(label, f"[{color}]{formatted_val}[/{color}]", f"[{color}]{signal}[/{color}]")
+        
+    return table
+
