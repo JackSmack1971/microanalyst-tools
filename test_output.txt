@@ -1,0 +1,59 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.9, pytest-8.4.2, pluggy-1.6.0
+rootdir: C:\workspaces\microanalyst-tools
+plugins: anyio-4.11.0, cov-7.0.0
+collected 1 item
+
+tests\test_main_export.py F                                              [100%]
+
+================================== FAILURES ===================================
+____________________________ test_export_html_flow ____________________________
+
+mock_html = <MagicMock name='export_to_html' id='1761026708816'>
+mock_json = <MagicMock name='export_to_json' id='1761311343008'>
+mock_console = <MagicMock name='console' id='1761311343344'>
+mock_binance = <MagicMock name='BinanceClient' id='1761311342672'>
+mock_cg = <MagicMock name='CoinGeckoClient' id='1761311343680'>
+
+    @patch("src.microanalyst.main.CoinGeckoClient")
+    @patch("src.microanalyst.main.BinanceClient")
+    @patch("src.microanalyst.main.console")
+    @patch("src.microanalyst.main.export_to_json")
+    @patch("src.microanalyst.main.export_to_html")
+    def test_export_html_flow(mock_html, mock_json, mock_console, mock_binance, mock_cg):
+        """Test full flow for HTML export."""
+        with patch("sys.argv", ["main.py", "eth", "--output", "html"]):
+            # Mock API responses (minimal)
+            mock_cg.return_value._request.return_value = {"coins": [{"id": "ethereum", "symbol": "eth"}]}
+            mock_cg.return_value.get_token_data.return_value = {"name": "Ethereum", "symbol": "eth"}
+            mock_cg.return_value.get_market_chart.return_value = {}
+            mock_binance.return_value.get_ticker_24h.return_value = {}
+            mock_binance.return_value.get_depth.return_value = {}
+    
+            main()
+    
+>           mock_html.assert_called_once()
+
+tests\test_main_export.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock name='export_to_html' id='1761026708816'>
+
+    def assert_called_once(self):
+        """assert that the mock was called only once.
+        """
+        if not self.call_count == 1:
+            msg = ("Expected '%s' to have been called once. Called %s times.%s"
+                   % (self._mock_name or 'mock',
+                      self.call_count,
+                      self._calls_repr()))
+>           raise AssertionError(msg)
+E           AssertionError: Expected 'export_to_html' to have been called once. Called 0 times.
+
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\Lib\unittest\mock.py:958: AssertionError
+---------------------------- Captured stdout call -----------------------------
+
+
+=========================== short test summary info ===========================
+FAILED tests/test_main_export.py::test_export_html_flow - AssertionError: Exp...
+============================== 1 failed in 1.76s ==============================
