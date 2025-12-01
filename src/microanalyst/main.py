@@ -10,10 +10,12 @@ from rich.traceback import install
 from src.cli.theme import generate_error_panel, get_metric_color, SEVERITY_STYLES
 from src.cli.progress import create_progress_bar, STAGE_DESCRIPTIONS
 from src.cli.formatters import format_number, format_percentage, format_currency
+from src.cli.prompts import prompt_token_selection
 from src.export.json_exporter import export_to_json
 from src.export.html_exporter import export_to_html
 from pathlib import Path
 from datetime import datetime
+import questionary
 
 from src.microanalyst.providers.coingecko import CoinGeckoClient
 from src.microanalyst.providers.binance import BinanceClient
@@ -44,7 +46,8 @@ class OutputMode(str, Enum):
 
 def main():
     parser = argparse.ArgumentParser(description="Elite Cryptocurrency Microanalyst Tool")
-    parser.add_argument("token", help="Token symbol (e.g., btc, eth, sol)")
+    parser.add_argument("token", nargs="?", help="Token symbol (e.g., btc, eth, sol)")
+    parser.add_argument("-i", "--interactive", action="store_true", help="Enable interactive mode")
     parser.add_argument("--days", default="30", help="Days of historical data (default: 30)")
     parser.add_argument(
         "--output",
@@ -55,7 +58,24 @@ def main():
     parser.add_argument("--save", help="Custom output filepath (optional)")
     args = parser.parse_args()
 
-    token_symbol = args.token.lower()
+    # Determine mode
+    is_interactive = args.interactive and sys.stdout.isatty()
+    
+    # Input handling
+    search_query = args.token
+    if not search_query:
+        if is_interactive:
+            try:
+                search_query = questionary.text("Enter token symbol or name to search:").ask()
+                if not search_query:
+                    console.print("[yellow]Search cancelled.[/yellow]")
+                    return
+            except KeyboardInterrupt:
+                return
+        else:
+            parser.error("the following arguments are required: token (or use --interactive)")
+
+    token_symbol = search_query.lower()
     
     console.print(f"[bold blue]Starting analysis for {token_symbol.upper()}...[/bold blue]")
 
@@ -83,8 +103,24 @@ def main():
             return
         
         # Pick the first exact match or the first result
-        token_id = search_results["coins"][0]["id"]
-        token_symbol_api = search_results["coins"][0]["symbol"] # e.g., 'btc'
+        if is_interactive:
+            # Prompt user to select from search results
+            selected_id = prompt_token_selection(search_results["coins"])
+            if not selected_id:
+                progress.stop()
+                console.print("[yellow]Selection cancelled.[/yellow]")
+                return
+            
+            # Find the selected coin object to get symbol
+            selected_coin = next((c for c in search_results["coins"] if c["id"] == selected_id), None)
+            token_id = selected_id
+            token_symbol_api = selected_coin["symbol"] if selected_coin else token_symbol
+            
+        else:
+            # Default behavior: pick first
+            token_id = search_results["coins"][0]["id"]
+            token_symbol_api = search_results["coins"][0]["symbol"] # e.g., 'btc'
+            
         logger.info(f"Resolved {token_symbol} to CoinGecko ID: {token_id}, Symbol: {token_symbol_api}")
         progress.update(task_search, advance=1)
 

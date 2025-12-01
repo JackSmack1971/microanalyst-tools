@@ -12,7 +12,7 @@ def prompt_token_selection(suggestions: List[Dict[str, Any]]) -> Optional[str]:
         suggestions: List of dictionaries containing token info (symbol, name, market_cap_rank).
         
     Returns:
-        The selected token symbol (lowercase), or None if cancelled/empty.
+        The selected token ID, or None if cancelled/empty.
     """
     if not suggestions:
         return None
@@ -23,7 +23,7 @@ def prompt_token_selection(suggestions: List[Dict[str, Any]]) -> Optional[str]:
         name = coin.get("name", "Unknown")
         rank = coin.get("market_cap_rank", "N/A")
         display = f"{symbol} ({name}) - Rank #{rank}"
-        choices.append(questionary.Choice(title=display, value=coin.get("symbol")))
+        choices.append(questionary.Choice(title=display, value=coin.get("id")))
         
     try:
         answer = questionary.select(
@@ -33,7 +33,7 @@ def prompt_token_selection(suggestions: List[Dict[str, Any]]) -> Optional[str]:
             use_shortcuts=True
         ).ask()
         
-        return answer.lower() if answer else None
+        return answer if answer else None
         
     except KeyboardInterrupt:
         return None

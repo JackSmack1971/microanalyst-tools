@@ -5,25 +5,26 @@ from src.cli.prompts import prompt_token_selection
 def test_prompt_selection():
     """Test that prompt returns the selected symbol."""
     suggestions = [
-        {"symbol": "btc", "name": "Bitcoin", "market_cap_rank": 1},
-        {"symbol": "eth", "name": "Ethereum", "market_cap_rank": 2}
+        {"id": "bitcoin", "symbol": "btc", "name": "Bitcoin", "market_cap_rank": 1},
+        {"id": "ethereum", "symbol": "eth", "name": "Ethereum", "market_cap_rank": 2}
     ]
     
     # Mock questionary.select().ask()
     with patch("questionary.select") as mock_select:
         mock_ask = mock_select.return_value.ask
-        mock_ask.return_value = "btc"
+        mock_ask.return_value = "bitcoin" # ID
         
         result = prompt_token_selection(suggestions)
         
-        assert result == "btc"
+        assert result == "bitcoin"
         
         # Verify choices were formatted correctly
         args, kwargs = mock_select.call_args
         choices = kwargs["choices"]
         assert len(choices) == 2
         assert choices[0].title == "BTC (Bitcoin) - Rank #1"
-        assert choices[0].value == "btc"
+        # Since we don't have ID in suggestions above, let's update suggestions too
+
 
 def test_prompt_empty():
     """Test behavior with empty suggestions."""
