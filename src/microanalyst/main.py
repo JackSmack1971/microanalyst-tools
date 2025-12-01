@@ -4,6 +4,8 @@ import logging
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.logging import RichHandler
+from rich.traceback import install
+from src.cli.theme import generate_error_panel
 
 from src.microanalyst.providers.coingecko import CoinGeckoClient
 from src.microanalyst.providers.binance import BinanceClient
@@ -23,6 +25,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("microanalyst")
+install(show_locals=False)
 console = Console()
 
 def main():
@@ -49,7 +52,11 @@ def main():
         # Quick search to get ID
         search_results = cg_client._request("search", params={"query": token_symbol})
         if not search_results or not search_results.get("coins"):
-            logger.error(f"Token {token_symbol} not found on CoinGecko.")
+            console.print(generate_error_panel(
+                "Token Not Found",
+                f"Token '{token_symbol}' not found on CoinGecko.",
+                ["Check spelling", "Try using the full name", "Verify token exists on CoinGecko"]
+            ))
             return
         
         # Pick the first exact match or the first result
@@ -61,7 +68,11 @@ def main():
         market_chart = cg_client.get_market_chart(token_id, days=args.days)
         
         if not cg_data or not market_chart:
-            logger.error("Failed to fetch CoinGecko data.")
+            console.print(generate_error_panel(
+                "Data Fetch Failed",
+                "Failed to fetch CoinGecko data.",
+                ["Check internet connection", "API might be down", "Rate limit exceeded"]
+            ))
             return
 
     with console.status("[bold yellow]Fetching data from Binance...[/bold yellow]"):
