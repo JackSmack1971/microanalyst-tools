@@ -117,3 +117,16 @@ def generate_error_panel(title: str, message: str, suggestions: List[str] = None
         width=80
     )
 
+def strip_color(text: str) -> str:
+    """
+    Removes ANSI color codes from text.
+    
+    Args:
+        text: Input text with potential ANSI codes.
+        
+    Returns:
+        str: Plain text without color codes.
+    """
+    return Text.from_markup(text).plain
+
+

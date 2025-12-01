@@ -1,4 +1,5 @@
 import sys
+import os
 import argparse
 import logging
 from typing import Dict, Any, List, Optional
@@ -159,7 +160,14 @@ def main():
     parser.add_argument("--config", help="Path to custom configuration file")
     parser.add_argument("--compare", help="Comma-separated list of tokens to compare (2-10)")
     parser.add_argument("--charts", action="store_true", help="Display price and volume charts")
+    parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     args = parser.parse_args()
+
+    # Handle No Color Mode
+    if args.no_color or os.environ.get("NO_COLOR"):
+        console.no_color = True
+        # Also disable plotext color if possible, though theme('clear') is mostly monochrome.
+        # We can force it if needed, but console.no_color handles Rich output.
 
     # Load Config
     try:
