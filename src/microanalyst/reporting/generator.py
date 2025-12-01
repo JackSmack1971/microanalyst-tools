@@ -1,6 +1,10 @@
 from datetime import datetime
 from typing import Dict, Any
 from rich.table import Table
+from rich.panel import Panel
+from rich.columns import Columns
+from rich.text import Text
+from rich.console import Group
 from src.cli.theme import get_metric_color, SEVERITY_STYLES
 from src.cli.formatters import format_percentage, format_currency, format_number
 
@@ -166,4 +170,52 @@ def generate_metric_table(metrics: Dict[str, float]) -> Table:
         table.add_row(label, f"[{color}]{formatted_val}[/{color}]", f"[{color}]{signal}[/{color}]")
         
     return table
+
+def generate_overview_panel(token_data: Dict[str, Any]) -> Panel:
+    """
+    Generates a structured Token Overview panel.
+    
+    Args:
+        token_data: CoinGecko token data dictionary.
+        
+    Returns:
+        Panel: Rich Panel object.
+    """
+    # Extract Data
+    name = token_data.get("name", "Unknown")
+    symbol = token_data.get("symbol", "???").upper()
+    rank = token_data.get("market_cap_rank")
+    
+    market_data = token_data.get("market_data", {})
+    price = market_data.get("current_price", {}).get("usd")
+    market_cap = market_data.get("market_cap", {}).get("usd")
+    volume_24h = market_data.get("total_volume", {}).get("usd")
+    
+    # Left Column: Identity
+    rank_color = "green" if rank and rank <= 10 else "yellow" if rank and rank > 100 else "cyan"
+    rank_str = f"#{rank}" if rank else "N/A"
+    
+    left_content = Group(
+        Text(f"{symbol}", style="bold white"),
+        Text(f"{name}", style="white"),
+        Text(f"Rank: ", style="dim") + Text(rank_str, style=rank_color)
+    )
+    
+    # Right Column: Market Data
+    right_content = Group(
+        Text(f"Price: {format_currency(price)}", style="bold green"),
+        Text(f"MCap:  {format_currency(market_cap)}", style="cyan"),
+        Text(f"Vol24: {format_currency(volume_24h)}", style="blue")
+    )
+    
+    # Layout
+    columns = Columns([left_content, right_content], expand=True)
+    
+    return Panel(
+        columns,
+        title="TOKEN OVERVIEW",
+        border_style="cyan",
+        width=80
+    )
+
 
