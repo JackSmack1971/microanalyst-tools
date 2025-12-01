@@ -1,5 +1,6 @@
 import pytest
-from src.cli.theme import get_metric_color, SEVERITY_STYLES
+from src.cli.theme import get_metric_color, SEVERITY_STYLES, generate_error_panel
+from rich.panel import Panel
 
 def test_get_metric_color_volatility():
     # High volatility (> 0.12)
@@ -39,3 +40,19 @@ def test_get_metric_color_imbalance():
 
 def test_get_metric_color_unknown():
     assert get_metric_color("unknown_metric", 100) == SEVERITY_STYLES["neutral"]
+
+def test_generate_error_panel(rich_console, assert_rich_contains):
+    panel = generate_error_panel(
+        title="Connection Failed",
+        message="Could not connect to CoinGecko API.",
+        suggestions=["Check internet connection", "Verify API status"]
+    )
+    
+    assert isinstance(panel, Panel)
+    rich_console.print(panel)
+    
+    assert_rich_contains(rich_console, "❌ Connection Failed")
+    assert_rich_contains(rich_console, "Could not connect to CoinGecko API.")
+    assert_rich_contains(rich_console, "Suggestions:")
+    assert_rich_contains(rich_console, "Check internet connection")
+

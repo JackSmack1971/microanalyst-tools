@@ -2,7 +2,10 @@
 Theme module for Microanalyst CLI.
 Centralizes semantic color logic and metric thresholds.
 """
-from typing import Dict, Any
+from typing import Dict, Any, List
+from rich.panel import Panel
+from rich.text import Text
+from rich.console import Group
 
 # Metric Thresholds
 # These define the boundaries for color coding.
@@ -87,3 +90,30 @@ def get_metric_color(metric_type: str, value: float) -> str:
             return SEVERITY_STYLES["healthy"]
 
     return SEVERITY_STYLES["neutral"]
+
+def generate_error_panel(title: str, message: str, suggestions: List[str] = None) -> Panel:
+    """
+    Generates a standardized error panel.
+    
+    Args:
+        title: The error title.
+        message: The main error description.
+        suggestions: Optional list of actionable suggestions.
+        
+    Returns:
+        Panel: Rich Panel object.
+    """
+    content_group = [Text(message)]
+    
+    if suggestions:
+        content_group.append(Text("\n💡 Suggestions:", style="bold yellow"))
+        for suggestion in suggestions:
+            content_group.append(Text(f"• {suggestion}"))
+            
+    return Panel(
+        Group(*content_group),
+        title=f"❌ {title}",
+        border_style=SEVERITY_STYLES["critical"],
+        width=80
+    )
+
