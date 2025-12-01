@@ -1,6 +1,7 @@
 import sys
 import argparse
 import logging
+from typing import Dict, Any, List, Optional
 import logging
 from enum import Enum
 from rich.console import Console
@@ -25,7 +26,8 @@ from src.microanalyst.analysis.metrics import (
     calculate_volume_metrics,
     calculate_liquidity_metrics
 )
-from src.microanalyst.reporting.generator import generate_report
+from src.comparison.comparator import compare_tokens
+from src.microanalyst.reporting.generator import generate_report, generate_comparison_table
 
 # Configure logging
 logging.basicConfig(
@@ -45,14 +47,95 @@ class OutputMode(str, Enum):
     HTML = "html"
     MARKDOWN = "markdown"
 
-def main():
-    # Load configuration early to use for defaults
-    # We need to parse --config separately or just load defaults first then override?
-    # Argparse doesn't easily support "load config then parse other args using config defaults" 
-    # without two-pass parsing or manual handling.
-    # Simpler approach: Parse args, load config (using --config if present), 
-    # then if args are default/None, use config values.
+def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client: BinanceClient, days: int, progress=None, task_ids=None) -> Dict[str, Any]:
+    """
+    Analyzes a single token and returns all relevant data and metrics.
+    """
+    # Search
+    if progress and task_ids:
+        progress.update(task_ids["search"], advance=0, description=f"Searching {token_symbol}...")
+        
+    try:
+        search_results = cg_client.search(token_symbol)
+    except Exception as e:
+        logger.error(f"Search failed for {token_symbol}: {e}")
+        return None
     
+    if not search_results or not search_results.get("coins"):
+        logger.error(f"Token {token_symbol} not found.")
+        return None
+    
+    # Default behavior: pick first
+    # Note: Interactive selection is handled in main() before calling this for single token,
+    # but for comparison mode we just take the first match to avoid interrupting the flow 10 times.
+    token_id = search_results["coins"][0]["id"]
+    token_symbol_api = search_results["coins"][0]["symbol"]
+    
+    if progress and task_ids:
+        progress.update(task_ids["search"], advance=1)
+        progress.update(task_ids["market"], advance=0, description=f"Fetching data for {token_symbol_api}...")
+
+    # Fetch Market Data
+    try:
+        cg_data = cg_client.get_token_data(token_id)
+        market_chart = cg_client.get_market_chart(token_id, days=days)
+    except Exception as e:
+        logger.error(f"Data fetch failed for {token_id}: {e}")
+        return None
+    
+    if not cg_data or not market_chart:
+        return None
+        
+    if progress and task_ids:
+        progress.update(task_ids["market"], advance=1)
+        progress.update(task_ids["orderbook"], advance=0, description=f"Fetching orderbook for {token_symbol_api}...")
+
+    # Binance Data
+    binance_symbol = f"{token_symbol_api.upper()}USDT"
+    ticker_24h = binance_client.get_ticker_24h(binance_symbol)
+    depth = binance_client.get_depth(binance_symbol)
+    
+    if not ticker_24h:
+        ticker_24h = {}
+        depth = {"bids": [], "asks": []}
+        
+    if progress and task_ids:
+        progress.update(task_ids["orderbook"], advance=1)
+        progress.update(task_ids["analysis"], advance=0, description=f"Analyzing {token_symbol_api}...")
+
+    # Analyze
+    prices = [p[1] for p in market_chart.get("prices", [])]
+    volumes = [v[1] for v in market_chart.get("total_volumes", [])]
+    
+    volatility_metrics = calculate_volatility_metrics(prices)
+    volume_metrics = calculate_volume_metrics(prices, volumes)
+    liquidity_metrics = calculate_liquidity_metrics(depth)
+    
+    # Calculate derived values
+    cg_vol = cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0)
+    bin_vol = float(ticker_24h.get("quoteVolume", 0))
+    vol_delta = ((abs(cg_vol - bin_vol)) / cg_vol * 100) if cg_vol else 0.0
+    
+    if progress and task_ids:
+        progress.update(task_ids["analysis"], advance=1)
+
+    return {
+        "token_symbol": token_symbol,
+        "token_symbol_api": token_symbol_api,
+        "cg_data": cg_data,
+        "ticker_24h": ticker_24h,
+        "volatility_metrics": volatility_metrics,
+        "volume_metrics": volume_metrics,
+        "liquidity_metrics": liquidity_metrics,
+        "vol_delta": vol_delta,
+        # Flattened metrics for comparison
+        "volatility": volatility_metrics.get("cv"),
+        "spread": liquidity_metrics.get("spread_pct"),
+        "volume_delta": vol_delta,
+        "imbalance": liquidity_metrics.get("imbalance")
+    }
+
+def main():
     parser = argparse.ArgumentParser(description="Elite Cryptocurrency Microanalyst Tool")
     parser.add_argument("token", nargs="?", help="Token symbol (e.g., btc, eth, sol)")
     parser.add_argument("-i", "--interactive", action="store_true", help="Enable interactive mode")
@@ -64,6 +147,7 @@ def main():
     )
     parser.add_argument("--save", help="Custom output filepath (optional)")
     parser.add_argument("--config", help="Path to custom configuration file")
+    parser.add_argument("--compare", help="Comma-separated list of tokens to compare (2-10)")
     args = parser.parse_args()
 
     # Load Config
@@ -73,18 +157,69 @@ def main():
         console.print(f"[dim]Loaded configuration from {config_path or 'defaults'}[/dim]")
     except Exception as e:
         console.print(f"[yellow]Warning: Failed to load config: {e}. Using internal defaults.[/yellow]")
-        config = load_config() # Fallback to internal defaults only
+        config = load_config()
 
-    # Apply defaults from config if args not provided
+    # Apply defaults
     days = int(args.days) if args.days else config["defaults"]["days"]
     output_mode_str = args.output if args.output else config["defaults"]["output_format"]
     output_mode = OutputMode(output_mode_str)
-
-    # Determine mode
-    is_interactive = args.interactive and sys.stdout.isatty()
     
-    # Input handling
+    # Initialize Clients
+    cg_client = CoinGeckoClient()
+    binance_client = BinanceClient()
+
+    # --- COMPARISON MODE ---
+    if args.compare:
+        tokens = [t.strip() for t in args.compare.split(",") if t.strip()]
+        if len(tokens) < 2:
+            console.print(generate_error_panel("Input Error", "Comparison requires at least 2 tokens.", []))
+            return
+        if len(tokens) > 10:
+            console.print(generate_error_panel("Input Error", "Comparison limited to 10 tokens max.", []))
+            return
+            
+        console.print(f"[bold blue]Comparing {len(tokens)} tokens...[/bold blue]")
+        
+        results = []
+        with create_progress_bar() as progress:
+            task_search = progress.add_task(STAGE_DESCRIPTIONS["token_search"], total=len(tokens))
+            task_market = progress.add_task(STAGE_DESCRIPTIONS["market_data"], total=len(tokens))
+            task_orderbook = progress.add_task(STAGE_DESCRIPTIONS["orderbook"], total=len(tokens))
+            task_analysis = progress.add_task(STAGE_DESCRIPTIONS["analysis"], total=len(tokens))
+            
+            task_ids = {
+                "search": task_search,
+                "market": task_market,
+                "orderbook": task_orderbook,
+                "analysis": task_analysis
+            }
+            
+            for token in tokens:
+                data = analyze_token(token, cg_client, binance_client, days, progress, task_ids)
+                if data:
+                    # Add symbol to flat metrics for comparator
+                    data["symbol"] = data["token_symbol_api"].upper()
+                    results.append(data)
+                else:
+                    console.print(f"[yellow]Skipping {token} (failed to analyze)[/yellow]")
+                    
+        if len(results) < 2:
+            console.print(generate_error_panel("Comparison Failed", "Not enough valid tokens to compare.", []))
+            return
+            
+        # Compare
+        metrics_to_compare = ["volatility", "spread", "volume_delta", "imbalance"]
+        comparison_data = compare_tokens(results, metrics_to_compare)
+        
+        # Render Table
+        table = generate_comparison_table(comparison_data)
+        console.print(table)
+        return
+
+    # --- SINGLE TOKEN MODE ---
+    is_interactive = args.interactive and sys.stdout.isatty()
     search_query = args.token
+    
     if not search_query:
         if is_interactive:
             try:
@@ -98,136 +233,91 @@ def main():
             parser.error("the following arguments are required: token (or use --interactive)")
 
     token_symbol = search_query.lower()
-    
     console.print(f"[bold blue]Starting analysis for {token_symbol.upper()}...[/bold blue]")
 
-    # Initialize Clients
-    cg_client = CoinGeckoClient()
-    binance_client = BinanceClient()
-
+    # Interactive Selection Logic (Pre-Analysis)
+    # We need to resolve the ID first if interactive, or just pass symbol to analyze_token
+    # But analyze_token does its own search.
+    # To support interactive selection, we should probably do the search here if interactive,
+    # then pass the resolved ID/Symbol to analyze_token?
+    # Or just let analyze_token handle it?
+    # analyze_token picks the first result.
+    # So for interactive mode, we must resolve it HERE.
+    
+    resolved_token_symbol = token_symbol
+    
+    # If interactive, we need to search and select manually before calling analyze_token
+    # But analyze_token repeats the search.
+    # Optimization: Pass resolved ID to analyze_token?
+    # Let's keep it simple: If interactive, we resolve symbol here.
+    # But analyze_token takes a symbol and searches again.
+    # We can modify analyze_token to accept an optional 'token_id' to skip search?
+    # Or just pass the exact symbol found.
+    
+    if is_interactive:
+        with create_progress_bar() as progress:
+             task_search = progress.add_task(STAGE_DESCRIPTIONS["token_search"], total=1)
+             try:
+                 search_results = cg_client.search(token_symbol)
+                 progress.update(task_search, advance=1)
+             except Exception:
+                 search_results = None
+                 
+        if search_results and search_results.get("coins"):
+             selected_id = prompt_token_selection(search_results["coins"])
+             if not selected_id:
+                 return
+             selected_coin = next((c for c in search_results["coins"] if c["id"] == selected_id), None)
+             if selected_coin:
+                 resolved_token_symbol = selected_coin["symbol"] # Use the exact symbol
+                 # Note: analyze_token will search again for this symbol and likely find it first.
+                 # This is acceptable for now to avoid major refactoring of analyze_token signature.
+    
+    # Run Analysis
     with create_progress_bar() as progress:
-        # Define Tasks
         task_search = progress.add_task(STAGE_DESCRIPTIONS["token_search"], total=1)
         task_market = progress.add_task(STAGE_DESCRIPTIONS["market_data"], total=1)
         task_orderbook = progress.add_task(STAGE_DESCRIPTIONS["orderbook"], total=1)
         task_analysis = progress.add_task(STAGE_DESCRIPTIONS["analysis"], total=1)
+        
+        task_ids = {
+            "search": task_search,
+            "market": task_market,
+            "orderbook": task_orderbook,
+            "analysis": task_analysis
+        }
+        
+        data = analyze_token(resolved_token_symbol, cg_client, binance_client, days, progress, task_ids)
+        
+    if not data:
+        # Error already logged in analyze_token
+        return
 
-        # Search
-        try:
-            search_results = cg_client.search(token_symbol)
-        except Exception as e:
-            progress.stop()
-            console.print(generate_error_panel("Search Failed", f"Could not find token '{token_symbol}'", [str(e)]))
-            return
-        
-        if not search_results or not search_results.get("coins"):
-            progress.stop()
-            console.print(generate_error_panel(
-                "Token Not Found",
-                f"Token '{token_symbol}' not found on CoinGecko.",
-                ["Check spelling", "Try using the full name", "Verify token exists on CoinGecko"]
-            ))
-            return
-        
-        # Pick the first exact match or the first result
-        if is_interactive:
-            # Prompt user to select from search results
-            selected_id = prompt_token_selection(search_results["coins"])
-            if not selected_id:
-                progress.stop()
-                console.print("[yellow]Selection cancelled.[/yellow]")
-                return
-            
-            # Find the selected coin object to get symbol
-            selected_coin = next((c for c in search_results["coins"] if c["id"] == selected_id), None)
-            token_id = selected_id
-            token_symbol_api = selected_coin["symbol"] if selected_coin else token_symbol
-            
-        else:
-            # Default behavior: pick first
-            token_id = search_results["coins"][0]["id"]
-            token_symbol_api = search_results["coins"][0]["symbol"] # e.g., 'btc'
-            
-        logger.info(f"Resolved {token_symbol} to CoinGecko ID: {token_id}, Symbol: {token_symbol_api}")
-        progress.update(task_search, advance=1)
-
-        # Fetch Market Data
-        try:
-            cg_data = cg_client.get_token_data(token_id)
-            market_chart = cg_client.get_market_chart(token_id, days=days)
-        except Exception as e:
-            progress.stop()
-            console.print(generate_error_panel("Data Fetch Error", "Failed to retrieve market data", [str(e)]))
-            return
-        
-        if not cg_data or not market_chart:
-            progress.stop()
-            console.print(generate_error_panel(
-                "Data Fetch Failed",
-                "Failed to fetch CoinGecko data.",
-                ["Check internet connection", "API might be down", "Rate limit exceeded"]
-            ))
-            return
-        progress.update(task_market, advance=1)
-
-        # Binance uses symbols like BTCUSDT
-        binance_symbol = f"{token_symbol_api.upper()}USDT"
-        logger.info(f"Using Binance Symbol: {binance_symbol}")
-        ticker_24h = binance_client.get_ticker_24h(binance_symbol)
-        depth = binance_client.get_depth(binance_symbol)
-        
-        if not ticker_24h:
-            logger.warning(f"Could not fetch Binance data for {binance_symbol}. Some metrics will be missing.")
-            ticker_24h = {}
-            depth = {"bids": [], "asks": []}
-        progress.update(task_orderbook, advance=1)
-
-        # 2. Analyze
-        # Extract prices/volumes from market chart
-        # market_chart['prices'] is list of [timestamp, price]
-        prices = [p[1] for p in market_chart.get("prices", [])]
-        volumes = [v[1] for v in market_chart.get("total_volumes", [])]
-        
-        volatility_metrics = calculate_volatility_metrics(prices)
-        volume_metrics = calculate_volume_metrics(prices, volumes)
-        liquidity_metrics = calculate_liquidity_metrics(depth)
-        progress.update(task_analysis, advance=1)
-    
     # 3. Report / Export
-    
-    # Prepare common data structure for exports
-    # Note: This duplicates some logic from generator.py, ideally we'd refactor generator to expose data prep.
-    # For now, we build it here to satisfy the export interfaces.
-    
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     
-    # Calculate derived values for export
-    cg_vol = cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0)
-    bin_vol = float(ticker_24h.get("quoteVolume", 0))
-    vol_delta = ((abs(cg_vol - bin_vol)) / cg_vol * 100) if cg_vol else 0.0
-    
     report_data = {
-        "token_symbol": token_symbol,
+        "token_symbol": data["token_symbol"],
         "timestamp": timestamp,
         "overview": {
-            "name": cg_data.get("name", "Unknown"),
-            "symbol": cg_data.get("symbol", "???"),
-            "rank": cg_data.get("market_cap_rank"),
-            "price": format_currency(cg_data.get("market_data", {}).get("current_price", {}).get("usd")),
-            "market_cap": format_currency(cg_data.get("market_data", {}).get("market_cap", {}).get("usd")),
-            "volume_24h": format_currency(cg_vol)
+            "name": data["cg_data"].get("name", "Unknown"),
+            "symbol": data["cg_data"].get("symbol", "???"),
+            "rank": data["cg_data"].get("market_cap_rank"),
+            "price": format_currency(data["cg_data"].get("market_data", {}).get("current_price", {}).get("usd")),
+            "market_cap": format_currency(data["cg_data"].get("market_data", {}).get("market_cap", {}).get("usd")),
+            "volume_24h": format_currency(data["cg_data"].get("market_data", {}).get("total_volume", {}).get("usd", 0))
         },
         "metrics": [],
         "risks": [],
         "confidence_score": 100
     }
     
-    # Populate metrics list with signals
+    # Populate metrics list
     raw_metrics = {
-        "volatility": volatility_metrics.get("cv"),
-        "spread": liquidity_metrics.get("spread_pct"),
-        "volume_delta": vol_delta,
-        "imbalance": liquidity_metrics.get("imbalance")
+        "volatility": data["volatility"],
+        "spread": data["spread"],
+        "volume_delta": data["volume_delta"],
+        "imbalance": data["imbalance"]
     }
     
     metric_labels = {
@@ -249,11 +339,10 @@ def main():
                 signal = "WARN"
                 signal_class = "signal-warn"
             
-            # Format value
             fmt_val = str(val)
             if key == "volatility": fmt_val = format_number(val, 2)
-            elif key == "spread": fmt_val = format_percentage(val / 100.0, 2) # spread is pct points
-            elif key == "volume_delta": fmt_val = format_percentage(val / 100.0, 1) # delta is pct points
+            elif key == "spread": fmt_val = format_percentage(val / 100.0, 2)
+            elif key == "volume_delta": fmt_val = format_percentage(val / 100.0, 1)
             elif key == "imbalance": fmt_val = format_number(val, 2)
 
             report_data["metrics"].append({
@@ -263,9 +352,10 @@ def main():
                 "signal_class": signal_class
             })
 
-    # Populate risks (simplified logic matching generator.py)
+    # Populate risks
     spread_val = raw_metrics["spread"] or 0.0
     imbalance_val = raw_metrics["imbalance"] or 1.0
+    vol_delta = raw_metrics["volume_delta"] or 0.0
     
     if spread_val > 0.5:
         report_data["risks"].append({"type": "Wide Bid-Ask Spread", "value": f"{spread_val:.2f}%"})
@@ -283,25 +373,24 @@ def main():
     # Routing
     if output_mode == OutputMode.TERMINAL:
         report_renderable = generate_report(
-            token_symbol,
-            cg_data,
-            ticker_24h,
-            volatility_metrics,
-            volume_metrics,
-            liquidity_metrics,
+            data["token_symbol"],
+            data["cg_data"],
+            data["ticker_24h"],
+            data["volatility_metrics"],
+            data["volume_metrics"],
+            data["liquidity_metrics"],
             validation_flags={},
-            config=config # Pass config
+            config=config
         )
         console.print(report_renderable)
         
     else:
-        # Determine filepath
         if args.save:
             filepath = Path(args.save)
         else:
             date_str = datetime.utcnow().strftime("%Y%m%d")
             ext = "json" if output_mode == OutputMode.JSON else "html"
-            filepath = Path(f"{token_symbol}_{date_str}.{ext}")
+            filepath = Path(f"{data['token_symbol']}_{date_str}.{ext}")
             
         try:
             if output_mode == OutputMode.JSON:
@@ -309,15 +398,14 @@ def main():
             elif output_mode == OutputMode.HTML:
                 export_to_html(report_data, filepath)
             elif output_mode == OutputMode.MARKDOWN:
-                 # Placeholder for markdown export if needed, or just warn
                  console.print("[yellow]Markdown export not yet implemented as file. Printing to terminal.[/yellow]")
                  report_renderable = generate_report(
-                    token_symbol,
-                    cg_data,
-                    ticker_24h,
-                    volatility_metrics,
-                    volume_metrics,
-                    liquidity_metrics,
+                    data["token_symbol"],
+                    data["cg_data"],
+                    data["ticker_24h"],
+                    data["volatility_metrics"],
+                    data["volume_metrics"],
+                    data["liquidity_metrics"],
                     validation_flags={},
                     config=config
                 )
