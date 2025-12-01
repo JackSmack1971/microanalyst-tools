@@ -115,7 +115,7 @@ def main():
         validation_flags={}
     )
     
-    console.print(Markdown(report_md))
+    console.print(report_md)
 
 if __name__ == "__main__":
     main()

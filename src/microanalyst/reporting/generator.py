@@ -4,7 +4,8 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.columns import Columns
 from rich.text import Text
-from rich.console import Group
+from rich.console import Group, RenderableType
+from rich.bar import Bar
 from src.cli.theme import get_metric_color, SEVERITY_STYLES
 from src.cli.formatters import format_percentage, format_currency, format_number
 
@@ -16,75 +17,78 @@ def generate_report(
     volume_metrics: Dict[str, float],
     liquidity_metrics: Dict[str, float],
     validation_flags: Dict[str, Any]
-) -> str:
+
+) -> RenderableType:
     """
-    Generates the Standard Analysis Report in Markdown format.
+    Generates the Standard Analysis Report as a Rich Renderable Group.
     """
     
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     
-    # Extract Data
-    market_cap = cg_data.get("market_data", {}).get("market_cap", {}).get("usd", "N/A")
-    rank = cg_data.get("market_cap_rank", "N/A")
+    # 1. Overview Panel
+    overview_panel = generate_overview_panel(cg_data)
     
-    # Format Metrics
-    cv = f"{volatility_metrics.get('cv', 0.0):.2f}"
-    bb_width = f"{volatility_metrics.get('bb_width', 0.0):.1f}%"
-    ath_dist = f"{cg_data.get('market_data', {}).get('ath_change_percentage', {}).get('usd', 0.0):.1f}%"
+    # 2. Metrics Table
+    # Prepare metrics dictionary for the table generator
+    metrics = {
+        "volatility": volatility_metrics.get("cv"),
+        "spread": liquidity_metrics.get("spread_pct"),
+        "volume_delta": ((abs(cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0) - float(binance_ticker.get("quoteVolume", 0)))) / cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 1) * 100) if cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0) else 0.0,
+        "imbalance": liquidity_metrics.get("imbalance")
+    }
+    metric_table = generate_metric_table(metrics)
     
-    spread = f"{liquidity_metrics.get('spread_pct', 0.0):.2f}%"
-    depth_2pct = f"${liquidity_metrics.get('depth_2pct', 0.0):,.0f}"
-    imbalance = f"{liquidity_metrics.get('imbalance', 0.0):.2f}"
+    # 3. Risk Factors
+    # Recalculate risk factors for display (logic similar to original string generation but structured)
+    risks = []
+    spread_val = metrics["spread"] if metrics["spread"] is not None else 0.0
+    vol_delta_val = metrics["volume_delta"]
+    imbalance_val = metrics["imbalance"] if metrics["imbalance"] is not None else 1.0
     
-    vol_change = f"{volume_metrics.get('vol_change_7d', 0.0):+.1f}%"
-    
-    # Validation Section
-    cg_vol = cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0)
-    bin_vol = float(binance_ticker.get("quoteVolume", 0))
-    vol_delta = ((abs(cg_vol - bin_vol)) / cg_vol * 100) if cg_vol else 0.0
-    
-    
-    report = f"""## TOKEN OVERVIEW
-Symbol: {token_symbol.upper()} | Rank: #{rank} | Market Cap: ${market_cap:,.0f}
-Data Sources: CoinGecko (last updated: {cg_data.get('last_updated', 'N/A')}) + Binance (live)
-
-## QUANTITATIVE METRICS
-1. Volatility Assessment
-   - 30D Coefficient of Variation: {cv}
-   - Bollinger Band Width (20D): {bb_width}
-   - ATH Distance: {ath_dist}
-
-2. Liquidity Profile
-   - Bid-Ask Spread (Binance): {spread}
-   - ±2% Order Book Depth: {depth_2pct}
-   - Order Book Imbalance: {imbalance} (>1 = bid pressure)
-
-3. Volume Intelligence
-   - 24h Volume vs 7D Average: {vol_change}
-   - CoinGecko-Binance Volume Delta: {vol_delta:.1f}%
-   
-## PATTERN RECOGNITION
-- Historical pattern analysis requires manual interpretation of the charts.
-- Current metrics suggest {'HIGH' if float(cv) > 0.1 else 'LOW'} volatility environment.
-
-## RISK FACTORS
-"""
-    
-    # Add Risk Factors
-    if float(spread.strip('%')) > 0.5:
-        report += f"- [WARNING] Wide Bid-Ask Spread: {spread}\n"
-    if vol_delta > 20:
-        report += f"- [WARNING] Significant Volume Discrepancy: {vol_delta:.1f}%\n"
-    if float(imbalance) < 0.5 or float(imbalance) > 2.0:
-        report += f"- [NOTE] High Order Book Imbalance: {imbalance}\n"
+    # Spread Risk
+    # Note: spread is percentage points (e.g. 0.5 for 0.5%)
+    if spread_val > 0.5:
+        risks.append(("[bold red]Wide Bid-Ask Spread[/bold red]", f"{spread_val:.2f}%"))
         
-    report += f"""
-## REFERENCE DATA
-- Analysis Timestamp: {timestamp}
-- API Call Count: Optimized (Batched/Cached)
-- Data Confidence: {'Low' if vol_delta > 50 else 'High'}
-"""
-    return report
+    # Volume Delta Risk
+    if vol_delta_val > 20:
+        risks.append(("[bold yellow]Volume Discrepancy[/bold yellow]", f"{vol_delta_val:.1f}%"))
+        
+    # Imbalance Risk
+    if imbalance_val < 0.5 or imbalance_val > 2.0:
+        risks.append(("[bold magenta]Order Book Imbalance[/bold magenta]", f"{imbalance_val:.2f}"))
+        
+    risk_table = Table(title="Risk Factors", border_style="red", show_header=True)
+    risk_table.add_column("Risk Type", style="bold")
+    risk_table.add_column("Value")
+    
+    if risks:
+        for r_type, r_val in risks:
+            risk_table.add_row(r_type, r_val)
+    else:
+        risk_table.add_row("[green]No critical risks detected[/green]", "-")
+
+    # 4. Footer / Confidence
+    confidence_score = 100.0
+    if vol_delta_val > 50:
+        confidence_score = 40.0
+    elif vol_delta_val > 20:
+        confidence_score = 70.0
+        
+    footer = Group(
+        Text(f"\nAnalysis Timestamp: {timestamp}", style="dim"),
+        Text("Data Confidence:", style="bold"),
+        Bar(100, 0, 100, width=40, color="green" if confidence_score > 80 else "yellow")
+    )
+    
+    return Group(
+        overview_panel,
+        Text(""), # Spacer
+        metric_table,
+        Text(""), # Spacer
+        risk_table,
+        footer
+    )
 
 def generate_metric_table(metrics: Dict[str, float]) -> Table:
     """
