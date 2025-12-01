@@ -10,13 +10,6 @@ def test_args_output_default(mock_console, mock_binance, mock_cg):
     """
     Test that default output mode is TERMINAL.
     """
-    # We need to inspect the args parsed inside main.
-    # Since main doesn't return args, we can mock argparse.ArgumentParser.parse_args
-    # But simpler is to check if the logic that uses args works.
-    # For now, let's just ensure it runs without error.
-    # To really verify the arg value, we can mock the part where it's used (future task).
-    # Or we can verify argparse setup by mocking ArgumentParser.
-    
     with patch("argparse.ArgumentParser.parse_args") as mock_parse:
         mock_parse.return_value.token = "btc"
         mock_parse.return_value.days = "30"
@@ -58,9 +51,6 @@ def test_args_output_json(mock_console, mock_binance, mock_cg):
     """
     Test that --output json is accepted.
     """
-    # We want to verify that argparse actually parses this.
-    # So we DON'T mock parse_args here, we let real argparse run on mocked sys.argv.
-    
     # Mock clients to avoid network calls
     mock_cg_instance = mock_cg.return_value
     mock_cg_instance._request.return_value = {"coins": [{"id": "bitcoin", "symbol": "btc"}]}

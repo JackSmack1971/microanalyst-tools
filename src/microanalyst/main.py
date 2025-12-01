@@ -1,6 +1,7 @@
 import sys
 import argparse
 import logging
+import logging
 from enum import Enum
 from rich.console import Console
 from rich.markdown import Markdown
