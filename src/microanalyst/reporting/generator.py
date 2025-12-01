@@ -224,4 +224,77 @@ def generate_overview_panel(token_data: Dict[str, Any]) -> Panel:
         width=80
     )
 
+def generate_comparison_table(comparison_data: Dict[str, Any]) -> Table:
+    """
+    Generates a Rich Table comparing multiple tokens.
+    
+    Args:
+        comparison_data: Output from comparator.compare_tokens.
+        
+    Returns:
+        Table: Rich Table object.
+    """
+    matrix = comparison_data.get("comparison_matrix", [])
+    stats = comparison_data.get("summary_stats", {})
+    
+    if not matrix:
+        return Table(title="Comparison Matrix (Empty)")
+        
+    # Determine metrics from stats keys
+    metrics = list(stats.keys())
+    
+    # Create Table
+    table = Table(title="Token Comparison Matrix", border_style="magenta")
+    table.add_column("Metric", style="cyan")
+    
+    # Add columns for each token
+    tokens = [item.get("symbol", f"Token_{i}") for i, item in enumerate(matrix)]
+    for token in tokens:
+        table.add_column(token, justify="right")
+        
+    table.add_column("Avg", justify="right", style="dim")
+    table.add_column("StdDev", justify="right", style="dim")
+    
+    # Add rows for each metric
+    for metric in metrics:
+        row_data = [metric.replace("_", " ").title()]
+        
+        # Get stats
+        mean = stats[metric]["mean"]
+        std = stats[metric]["std"]
+        
+        # Add token values with coloring
+        for item in matrix:
+            val = item.get(metric)
+            z_score = item.get(f"{metric}_z_score", 0.0)
+            
+            # Formatting
+            if isinstance(val, (int, float)):
+                fmt_val = format_number(val, 2)
+            else:
+                fmt_val = str(val)
+                
+            # Coloring based on Z-Score (Simple heuristic: > 1 std dev is colored)
+            # Polarity is ambiguous without metadata, so we just highlight deviation
+            color = ""
+            if z_score > 1.0:
+                color = "yellow"
+            elif z_score < -1.0:
+                color = "blue"
+            elif z_score > 2.0:
+                color = "red"
+                
+            if color:
+                fmt_val = f"[{color}]{fmt_val}[/{color}]"
+                
+            row_data.append(fmt_val)
+            
+        # Add stats
+        row_data.append(format_number(mean, 2))
+        row_data.append(format_number(std, 2))
+        
+        table.add_row(*row_data)
+        
+    return table
+
 
