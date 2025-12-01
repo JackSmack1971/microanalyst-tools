@@ -7,8 +7,13 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.logging import RichHandler
 from rich.traceback import install
-from src.cli.theme import generate_error_panel
+from src.cli.theme import generate_error_panel, get_metric_color, SEVERITY_STYLES
 from src.cli.progress import create_progress_bar, STAGE_DESCRIPTIONS
+from src.cli.formatters import format_number, format_percentage, format_currency
+from src.export.json_exporter import export_to_json
+from src.export.html_exporter import export_to_html
+from pathlib import Path
+from datetime import datetime
 
 from src.microanalyst.providers.coingecko import CoinGeckoClient
 from src.microanalyst.providers.binance import BinanceClient
@@ -47,6 +52,7 @@ def main():
         choices=[m.value for m in OutputMode],
         help="Output format (default: terminal)"
     )
+    parser.add_argument("--save", help="Custom output filepath (optional)")
     args = parser.parse_args()
 
     token_symbol = args.token.lower()
@@ -118,18 +124,143 @@ def main():
         liquidity_metrics = calculate_liquidity_metrics(depth)
         progress.update(task_analysis, advance=1)
     
-    # 3. Report
-    report_md = generate_report(
-        token_symbol,
-        cg_data,
-        ticker_24h,
-        volatility_metrics,
-        volume_metrics,
-        liquidity_metrics,
-        validation_flags={}
-    )
+    # 3. Report / Export
     
-    console.print(report_md)
+    # Prepare common data structure for exports
+    # Note: This duplicates some logic from generator.py, ideally we'd refactor generator to expose data prep.
+    # For now, we build it here to satisfy the export interfaces.
+    
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    
+    # Calculate derived values for export
+    cg_vol = cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0)
+    bin_vol = float(ticker_24h.get("quoteVolume", 0))
+    vol_delta = ((abs(cg_vol - bin_vol)) / cg_vol * 100) if cg_vol else 0.0
+    
+    report_data = {
+        "token_symbol": token_symbol,
+        "timestamp": timestamp,
+        "overview": {
+            "name": cg_data.get("name", "Unknown"),
+            "symbol": cg_data.get("symbol", "???"),
+            "rank": cg_data.get("market_cap_rank"),
+            "price": format_currency(cg_data.get("market_data", {}).get("current_price", {}).get("usd")),
+            "market_cap": format_currency(cg_data.get("market_data", {}).get("market_cap", {}).get("usd")),
+            "volume_24h": format_currency(cg_vol)
+        },
+        "metrics": [],
+        "risks": [],
+        "confidence_score": 100
+    }
+    
+    # Populate metrics list with signals
+    raw_metrics = {
+        "volatility": volatility_metrics.get("cv"),
+        "spread": liquidity_metrics.get("spread_pct"),
+        "volume_delta": vol_delta,
+        "imbalance": liquidity_metrics.get("imbalance")
+    }
+    
+    metric_labels = {
+        "volatility": "Volatility (CV)",
+        "spread": "Spread",
+        "volume_delta": "Volume Delta",
+        "imbalance": "Imbalance"
+    }
+    
+    for key, val in raw_metrics.items():
+        if val is not None:
+            color = get_metric_color(key, val)
+            signal = "OK"
+            signal_class = "signal-ok"
+            if color == SEVERITY_STYLES["critical"]:
+                signal = "HIGH"
+                signal_class = "signal-high"
+            elif color == SEVERITY_STYLES["warning"]:
+                signal = "WARN"
+                signal_class = "signal-warn"
+            
+            # Format value
+            fmt_val = str(val)
+            if key == "volatility": fmt_val = format_number(val, 2)
+            elif key == "spread": fmt_val = format_percentage(val / 100.0, 2) # spread is pct points
+            elif key == "volume_delta": fmt_val = format_percentage(val / 100.0, 1) # delta is pct points
+            elif key == "imbalance": fmt_val = format_number(val, 2)
+
+            report_data["metrics"].append({
+                "name": metric_labels.get(key, key),
+                "value": fmt_val,
+                "signal": signal,
+                "signal_class": signal_class
+            })
+
+    # Populate risks (simplified logic matching generator.py)
+    spread_val = raw_metrics["spread"] or 0.0
+    imbalance_val = raw_metrics["imbalance"] or 1.0
+    
+    if spread_val > 0.5:
+        report_data["risks"].append({"type": "Wide Bid-Ask Spread", "value": f"{spread_val:.2f}%"})
+    if vol_delta > 20:
+        report_data["risks"].append({"type": "Volume Discrepancy", "value": f"{vol_delta:.1f}%"})
+    if imbalance_val < 0.5 or imbalance_val > 2.0:
+        report_data["risks"].append({"type": "Order Book Imbalance", "value": f"{imbalance_val:.2f}"})
+
+    # Confidence Score
+    if vol_delta > 50:
+        report_data["confidence_score"] = 40
+    elif vol_delta > 20:
+        report_data["confidence_score"] = 70
+
+    # Routing
+    if args.output == OutputMode.TERMINAL:
+        report_renderable = generate_report(
+            token_symbol,
+            cg_data,
+            ticker_24h,
+            volatility_metrics,
+            volume_metrics,
+            liquidity_metrics,
+            validation_flags={}
+        )
+        console.print(report_renderable)
+        
+    else:
+        # Determine filepath
+        if args.save:
+            filepath = Path(args.save)
+        else:
+            date_str = datetime.utcnow().strftime("%Y%m%d")
+            ext = "json" if args.output == OutputMode.JSON else "html"
+            filepath = Path(f"{token_symbol}_{date_str}.{ext}")
+            
+        try:
+            if args.output == OutputMode.JSON:
+                export_to_json(report_data, filepath)
+            elif args.output == OutputMode.HTML:
+                export_to_html(report_data, filepath)
+            elif args.output == OutputMode.MARKDOWN:
+                 # Placeholder for markdown export if needed, or just warn
+                 console.print("[yellow]Markdown export not yet implemented as file. Printing to terminal.[/yellow]")
+                 report_renderable = generate_report(
+                    token_symbol,
+                    cg_data,
+                    ticker_24h,
+                    volatility_metrics,
+                    volume_metrics,
+                    liquidity_metrics,
+                    validation_flags={}
+                )
+                 console.print(report_renderable)
+                 return
+
+            console.print(f"[bold green]Successfully exported report to {filepath}[/bold green]")
+            
+        except Exception as e:
+            console.print(generate_error_panel(
+                "Export Failed",
+                f"Failed to save {args.output} report to {filepath}.",
+                [str(e), "Check file permissions", "Ensure directory exists"]
+            ))
 
 if __name__ == "__main__":
     main()
