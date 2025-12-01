@@ -1,6 +1,7 @@
 import sys
 import argparse
 import logging
+from enum import Enum
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.logging import RichHandler
@@ -29,10 +30,22 @@ logger = logging.getLogger("microanalyst")
 install(show_locals=False)
 console = Console()
 
+class OutputMode(str, Enum):
+    TERMINAL = "terminal"
+    JSON = "json"
+    HTML = "html"
+    MARKDOWN = "markdown"
+
 def main():
     parser = argparse.ArgumentParser(description="Elite Cryptocurrency Microanalyst Tool")
     parser.add_argument("token", help="Token symbol (e.g., btc, eth, sol)")
     parser.add_argument("--days", default="30", help="Days of historical data (default: 30)")
+    parser.add_argument(
+        "--output",
+        default="terminal",
+        choices=[m.value for m in OutputMode],
+        help="Output format (default: terminal)"
+    )
     args = parser.parse_args()
 
     token_symbol = args.token.lower()
