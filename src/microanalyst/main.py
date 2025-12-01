@@ -28,6 +28,7 @@ from src.microanalyst.analysis.metrics import (
 )
 from src.comparison.comparator import compare_tokens
 from src.microanalyst.reporting.generator import generate_report, generate_comparison_table
+from src.visualization.charts import generate_price_chart, generate_volume_chart
 
 # Configure logging
 logging.basicConfig(
@@ -66,8 +67,6 @@ def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client:
         return None
     
     # Default behavior: pick first
-    # Note: Interactive selection is handled in main() before calling this for single token,
-    # but for comparison mode we just take the first match to avoid interrupting the flow 10 times.
     token_id = search_results["coins"][0]["id"]
     token_symbol_api = search_results["coins"][0]["symbol"]
     
@@ -104,8 +103,15 @@ def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client:
         progress.update(task_ids["analysis"], advance=0, description=f"Analyzing {token_symbol_api}...")
 
     # Analyze
-    prices = [p[1] for p in market_chart.get("prices", [])]
-    volumes = [v[1] for v in market_chart.get("total_volumes", [])]
+    prices_data = market_chart.get("prices", [])
+    volumes_data = market_chart.get("total_volumes", [])
+    
+    prices = [p[1] for p in prices_data]
+    volumes = [v[1] for v in volumes_data]
+    
+    # Extract dates for charts (convert ms timestamp to datetime string)
+    # CoinGecko timestamps are in ms
+    dates = [datetime.fromtimestamp(p[0]/1000).strftime("%Y-%m-%d") for p in prices_data]
     
     volatility_metrics = calculate_volatility_metrics(prices)
     volume_metrics = calculate_volume_metrics(prices, volumes)
@@ -132,7 +138,11 @@ def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client:
         "volatility": volatility_metrics.get("cv"),
         "spread": liquidity_metrics.get("spread_pct"),
         "volume_delta": vol_delta,
-        "imbalance": liquidity_metrics.get("imbalance")
+        "imbalance": liquidity_metrics.get("imbalance"),
+        # Chart data
+        "dates": dates,
+        "prices": prices,
+        "volumes": volumes
     }
 
 def main():
@@ -148,6 +158,7 @@ def main():
     parser.add_argument("--save", help="Custom output filepath (optional)")
     parser.add_argument("--config", help="Path to custom configuration file")
     parser.add_argument("--compare", help="Comma-separated list of tokens to compare (2-10)")
+    parser.add_argument("--charts", action="store_true", help="Display price and volume charts")
     args = parser.parse_args()
 
     # Load Config
@@ -197,7 +208,6 @@ def main():
             for token in tokens:
                 data = analyze_token(token, cg_client, binance_client, days, progress, task_ids)
                 if data:
-                    # Add symbol to flat metrics for comparator
                     data["symbol"] = data["token_symbol_api"].upper()
                     results.append(data)
                 else:
@@ -214,6 +224,16 @@ def main():
         # Render Table
         table = generate_comparison_table(comparison_data)
         console.print(table)
+        
+        # Render Charts if requested
+        if args.charts:
+            console.print("\n[bold cyan]Generating Charts...[/bold cyan]")
+            for res in results:
+                console.print(f"\n[bold underline]{res['symbol']} Charts[/bold underline]")
+                p_chart = generate_price_chart(res["dates"], res["prices"], f"{res['symbol']} Price History")
+                v_chart = generate_volume_chart(res["dates"], res["volumes"], f"{res['symbol']} Volume History")
+                console.print(p_chart)
+                console.print(v_chart)
         return
 
     # --- SINGLE TOKEN MODE ---
@@ -235,24 +255,7 @@ def main():
     token_symbol = search_query.lower()
     console.print(f"[bold blue]Starting analysis for {token_symbol.upper()}...[/bold blue]")
 
-    # Interactive Selection Logic (Pre-Analysis)
-    # We need to resolve the ID first if interactive, or just pass symbol to analyze_token
-    # But analyze_token does its own search.
-    # To support interactive selection, we should probably do the search here if interactive,
-    # then pass the resolved ID/Symbol to analyze_token?
-    # Or just let analyze_token handle it?
-    # analyze_token picks the first result.
-    # So for interactive mode, we must resolve it HERE.
-    
     resolved_token_symbol = token_symbol
-    
-    # If interactive, we need to search and select manually before calling analyze_token
-    # But analyze_token repeats the search.
-    # Optimization: Pass resolved ID to analyze_token?
-    # Let's keep it simple: If interactive, we resolve symbol here.
-    # But analyze_token takes a symbol and searches again.
-    # We can modify analyze_token to accept an optional 'token_id' to skip search?
-    # Or just pass the exact symbol found.
     
     if is_interactive:
         with create_progress_bar() as progress:
@@ -269,9 +272,7 @@ def main():
                  return
              selected_coin = next((c for c in search_results["coins"] if c["id"] == selected_id), None)
              if selected_coin:
-                 resolved_token_symbol = selected_coin["symbol"] # Use the exact symbol
-                 # Note: analyze_token will search again for this symbol and likely find it first.
-                 # This is acceptable for now to avoid major refactoring of analyze_token signature.
+                 resolved_token_symbol = selected_coin["symbol"]
     
     # Run Analysis
     with create_progress_bar() as progress:
@@ -290,7 +291,6 @@ def main():
         data = analyze_token(resolved_token_symbol, cg_client, binance_client, days, progress, task_ids)
         
     if not data:
-        # Error already logged in analyze_token
         return
 
     # 3. Report / Export
@@ -384,6 +384,14 @@ def main():
         )
         console.print(report_renderable)
         
+        # Render Charts if requested
+        if args.charts:
+            console.print("\n[bold cyan]Generating Charts...[/bold cyan]")
+            p_chart = generate_price_chart(data["dates"], data["prices"], f"{data['token_symbol_api'].upper()} Price History")
+            v_chart = generate_volume_chart(data["dates"], data["volumes"], f"{data['token_symbol_api'].upper()} Volume History")
+            console.print(p_chart)
+            console.print(v_chart)
+        
     else:
         if args.save:
             filepath = Path(args.save)
@@ -410,6 +418,12 @@ def main():
                     config=config
                 )
                  console.print(report_renderable)
+                 if args.charts:
+                    console.print("\n[bold cyan]Generating Charts...[/bold cyan]")
+                    p_chart = generate_price_chart(data["dates"], data["prices"], f"{data['token_symbol_api'].upper()} Price History")
+                    v_chart = generate_volume_chart(data["dates"], data["volumes"], f"{data['token_symbol_api'].upper()} Volume History")
+                    console.print(p_chart)
+                    console.print(v_chart)
                  return
 
             console.print(f"[bold green]Successfully exported report to {filepath}[/bold green]")
