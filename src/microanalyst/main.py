@@ -13,6 +13,7 @@ from src.cli.formatters import format_number, format_percentage, format_currency
 from src.cli.prompts import prompt_token_selection
 from src.export.json_exporter import export_to_json
 from src.export.html_exporter import export_to_html
+from src.config.loader import load_config
 from pathlib import Path
 from datetime import datetime
 import questionary
@@ -45,18 +46,39 @@ class OutputMode(str, Enum):
     MARKDOWN = "markdown"
 
 def main():
+    # Load configuration early to use for defaults
+    # We need to parse --config separately or just load defaults first then override?
+    # Argparse doesn't easily support "load config then parse other args using config defaults" 
+    # without two-pass parsing or manual handling.
+    # Simpler approach: Parse args, load config (using --config if present), 
+    # then if args are default/None, use config values.
+    
     parser = argparse.ArgumentParser(description="Elite Cryptocurrency Microanalyst Tool")
     parser.add_argument("token", nargs="?", help="Token symbol (e.g., btc, eth, sol)")
     parser.add_argument("-i", "--interactive", action="store_true", help="Enable interactive mode")
-    parser.add_argument("--days", default="30", help="Days of historical data (default: 30)")
+    parser.add_argument("--days", help="Days of historical data (default: 30)")
     parser.add_argument(
         "--output",
-        default="terminal",
         choices=[m.value for m in OutputMode],
         help="Output format (default: terminal)"
     )
     parser.add_argument("--save", help="Custom output filepath (optional)")
+    parser.add_argument("--config", help="Path to custom configuration file")
     args = parser.parse_args()
+
+    # Load Config
+    try:
+        config_path = Path(args.config) if args.config else None
+        config = load_config(config_path)
+        console.print(f"[dim]Loaded configuration from {config_path or 'defaults'}[/dim]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to load config: {e}. Using internal defaults.[/yellow]")
+        config = load_config() # Fallback to internal defaults only
+
+    # Apply defaults from config if args not provided
+    days = int(args.days) if args.days else config["defaults"]["days"]
+    output_mode_str = args.output if args.output else config["defaults"]["output_format"]
+    output_mode = OutputMode(output_mode_str)
 
     # Determine mode
     is_interactive = args.interactive and sys.stdout.isatty()
@@ -90,9 +112,14 @@ def main():
         task_orderbook = progress.add_task(STAGE_DESCRIPTIONS["orderbook"], total=1)
         task_analysis = progress.add_task(STAGE_DESCRIPTIONS["analysis"], total=1)
 
-        # 1. Fetch Data
-        # Quick search to get ID
-        search_results = cg_client._request("search", params={"query": token_symbol})
+        # Search
+        try:
+            search_results = cg_client.search(token_symbol)
+        except Exception as e:
+            progress.stop()
+            console.print(generate_error_panel("Search Failed", f"Could not find token '{token_symbol}'", [str(e)]))
+            return
+        
         if not search_results or not search_results.get("coins"):
             progress.stop()
             console.print(generate_error_panel(
@@ -124,8 +151,14 @@ def main():
         logger.info(f"Resolved {token_symbol} to CoinGecko ID: {token_id}, Symbol: {token_symbol_api}")
         progress.update(task_search, advance=1)
 
-        cg_data = cg_client.get_token_data(token_id)
-        market_chart = cg_client.get_market_chart(token_id, days=args.days)
+        # Fetch Market Data
+        try:
+            cg_data = cg_client.get_token_data(token_id)
+            market_chart = cg_client.get_market_chart(token_id, days=days)
+        except Exception as e:
+            progress.stop()
+            console.print(generate_error_panel("Data Fetch Error", "Failed to retrieve market data", [str(e)]))
+            return
         
         if not cg_data or not market_chart:
             progress.stop()
@@ -248,7 +281,7 @@ def main():
         report_data["confidence_score"] = 70
 
     # Routing
-    if args.output == OutputMode.TERMINAL:
+    if output_mode == OutputMode.TERMINAL:
         report_renderable = generate_report(
             token_symbol,
             cg_data,
@@ -256,7 +289,8 @@ def main():
             volatility_metrics,
             volume_metrics,
             liquidity_metrics,
-            validation_flags={}
+            validation_flags={},
+            config=config # Pass config
         )
         console.print(report_renderable)
         
@@ -266,15 +300,15 @@ def main():
             filepath = Path(args.save)
         else:
             date_str = datetime.utcnow().strftime("%Y%m%d")
-            ext = "json" if args.output == OutputMode.JSON else "html"
+            ext = "json" if output_mode == OutputMode.JSON else "html"
             filepath = Path(f"{token_symbol}_{date_str}.{ext}")
             
         try:
-            if args.output == OutputMode.JSON:
+            if output_mode == OutputMode.JSON:
                 export_to_json(report_data, filepath)
-            elif args.output == OutputMode.HTML:
+            elif output_mode == OutputMode.HTML:
                 export_to_html(report_data, filepath)
-            elif args.output == OutputMode.MARKDOWN:
+            elif output_mode == OutputMode.MARKDOWN:
                  # Placeholder for markdown export if needed, or just warn
                  console.print("[yellow]Markdown export not yet implemented as file. Printing to terminal.[/yellow]")
                  report_renderable = generate_report(
@@ -284,7 +318,8 @@ def main():
                     volatility_metrics,
                     volume_metrics,
                     liquidity_metrics,
-                    validation_flags={}
+                    validation_flags={},
+                    config=config
                 )
                  console.print(report_renderable)
                  return
@@ -294,7 +329,7 @@ def main():
         except Exception as e:
             console.print(generate_error_panel(
                 "Export Failed",
-                f"Failed to save {args.output} report to {filepath}.",
+                f"Failed to save {output_mode.value} report to {filepath}.",
                 [str(e), "Check file permissions", "Ensure directory exists"]
             ))
 

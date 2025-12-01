@@ -16,13 +16,15 @@ def generate_report(
     volatility_metrics: Dict[str, float],
     volume_metrics: Dict[str, float],
     liquidity_metrics: Dict[str, float],
-    validation_flags: Dict[str, Any]
-
+    validation_flags: Dict[str, Any],
+    config: Dict[str, Any] = None
 ) -> RenderableType:
     """
     Generates the Standard Analysis Report as a Rich Renderable Group.
     """
-    
+    if config is None:
+        config = {}
+        
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     
     # 1. Overview Panel
