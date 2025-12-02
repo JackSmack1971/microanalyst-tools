@@ -1,55 +1,48 @@
+"""
+Unit tests for comparator module.
+"""
 import pytest
+import pandas as pd
 from src.comparison.comparator import compare_tokens
 
-def test_compare_tokens_basic():
-    tokens = [
-        {"symbol": "BTC", "volatility": 0.05, "spread": 0.1},
-        {"symbol": "ETH", "volatility": 0.08, "spread": 0.2},
-        {"symbol": "SOL", "volatility": 0.12, "spread": 0.15}
-    ]
-    metrics = ["volatility", "spread"]
+class TestComparator:
     
-    result = compare_tokens(tokens, metrics)
-    
-    matrix = result["comparison_matrix"]
-    stats = result["summary_stats"]
-    
-    assert len(matrix) == 3
-    assert "volatility_z_score" in matrix[0]
-    assert "spread_percentile" in matrix[0]
-    
-    # Check mean calculation
-    # Volatility mean: (0.05 + 0.08 + 0.12) / 3 = 0.08333333
-    assert stats["volatility"]["mean"] == pytest.approx(0.08333333)
+    def test_compare_tokens_returns_correct_structure(self):
+        """Test that compare_tokens returns a tuple of DataFrames."""
+        results = [
+            {
+                "symbol": "BTC",
+                "current_price": 50000,
+                "market_cap": 1000000,
+                "total_volume": 50000,
+                "volatility": {"cv": 0.05},
+                "liquidity": {"spread_pct": 0.1, "depth_2pct": 100000, "imbalance": 1.0}
+            },
+            {
+                "symbol": "ETH",
+                "current_price": 3000,
+                "market_cap": 500000,
+                "total_volume": 30000,
+                "volatility": {"cv": 0.06},
+                "liquidity": {"spread_pct": 0.1, "depth_2pct": 50000, "imbalance": 1.0}
+            }
+        ]
+        
+        metrics_df, correlation_df = compare_tokens(results)
+        
+        assert isinstance(metrics_df, pd.DataFrame)
+        assert isinstance(correlation_df, pd.DataFrame)
+        assert not metrics_df.empty
+        # Correlation df might be empty if no price history provided
+        assert correlation_df.empty 
+        
+        # Check columns in metrics_df
+        expected_cols = ["Symbol", "Price", "Market Cap", "Volume", "CV (Vol)", "Spread %", "Depth ±2%"]
+        for col in expected_cols:
+            assert col in metrics_df.columns
 
-def test_compare_single_token():
-    tokens = [{"symbol": "BTC", "volatility": 0.05}]
-    metrics = ["volatility"]
-    
-    result = compare_tokens(tokens, metrics)
-    matrix = result["comparison_matrix"]
-    
-    assert len(matrix) == 1
-    assert matrix[0]["volatility_z_score"] == 0.0 # Std is NaN or 0, handled
-    assert matrix[0]["volatility_dev_pct"] == 0.0
-
-def test_missing_metrics():
-    tokens = [
-        {"symbol": "BTC", "volatility": 0.05},
-        {"symbol": "ETH"} # Missing volatility
-    ]
-    metrics = ["volatility"]
-    
-    result = compare_tokens(tokens, metrics)
-    matrix = result["comparison_matrix"]
-    
-    assert len(matrix) == 2
-    # Check that missing value resulted in NaN/None for stats or handled gracefully
-    # Pandas describe ignores NaNs. Mean of [0.05] is 0.05.
-    # BTC: (0.05 - 0.05) = 0.
-    assert matrix[0]["volatility_z_score"] == 0.0
-
-def test_empty_input():
-    result = compare_tokens([], ["volatility"])
-    assert result["comparison_matrix"] == []
-    assert result["summary_stats"] == {}
+    def test_compare_tokens_empty_input(self):
+        """Test that empty input returns empty DataFrames."""
+        metrics_df, correlation_df = compare_tokens([])
+        assert metrics_df.empty
+        assert correlation_df.empty

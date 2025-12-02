@@ -3,7 +3,6 @@ import os
 import argparse
 import logging
 from typing import Dict, Any, List, Optional
-import logging
 from enum import Enum
 from rich.console import Console
 from rich.markdown import Markdown
@@ -28,7 +27,7 @@ from src.microanalyst.analysis.metrics import (
     calculate_liquidity_metrics
 )
 from src.comparison.comparator import compare_tokens
-from src.microanalyst.reporting.generator import generate_report, generate_comparison_table
+from src.microanalyst.reporting.generator import generate_report, generate_comparison_table, generate_correlation_table
 from src.visualization.charts import generate_price_chart, generate_volume_chart
 
 # Configure logging
@@ -226,12 +225,17 @@ def main():
             return
             
         # Compare
-        metrics_to_compare = ["volatility", "spread", "volume_delta", "imbalance"]
-        comparison_data = compare_tokens(results, metrics_to_compare)
+        metrics_df, correlation_df = compare_tokens(results)
         
-        # Render Table
-        table = generate_comparison_table(comparison_data)
-        console.print(table)
+        # Render Comparison Table
+        comp_table = generate_comparison_table(metrics_df)
+        console.print(comp_table)
+        
+        # Render Correlation Heatmap
+        if not correlation_df.empty:
+            console.print("\n")
+            corr_table = generate_correlation_table(correlation_df)
+            console.print(corr_table)
         
         # Render Charts if requested
         if args.charts:

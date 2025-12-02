@@ -1,80 +1,73 @@
 import pandas as pd
-import numpy as np
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
-def compare_tokens(tokens: List[Dict[str, Any]], metrics: List[str]) -> Dict[str, Any]:
+def compare_tokens(results: List[Dict[str, Any]]) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Compare multiple tokens based on a list of metrics.
-
+    Compares multiple token analysis results.
+    
     Args:
-        tokens: List of dictionaries containing token data.
-                Each dict must have 'symbol' and keys corresponding to metrics.
-        metrics: List of metric keys to compare (e.g., ['volatility', 'spread']).
-
+        results: List of analysis result dictionaries.
+        
     Returns:
-        Dictionary containing:
-        - comparison_matrix: List of dicts with original data + stats (z_score, percentile, deviation).
-        - summary_stats: Dictionary of summary statistics for each metric.
+        Tuple[pd.DataFrame, pd.DataFrame]: 
+            - Metrics DataFrame (comparison table)
+            - Correlation Matrix DataFrame
     """
-    if not tokens:
-        return {"comparison_matrix": [], "summary_stats": {}}
-
-    # Convert to DataFrame
-    df = pd.DataFrame(tokens)
-    
-    # Ensure 'symbol' is present, if not, use index
-    if 'symbol' not in df.columns:
-        df['symbol'] = [f"Token_{i}" for i in range(len(df))]
-
-    # Filter for relevant metrics and ensure numeric
-    # We only process metrics that exist in the dataframe columns
-    valid_metrics = [m for m in metrics if m in df.columns]
-    
-    if not valid_metrics:
-        # Return basic info if no metrics found
-        return {
-            "comparison_matrix": df.to_dict(orient='records'),
-            "summary_stats": {}
+    if not results:
+        return pd.DataFrame(), pd.DataFrame()
+        
+    # 1. Build Metrics DataFrame
+    rows = []
+    for res in results:
+        # Handle potential missing keys gracefully
+        volatility = res.get("volatility", {}) or {}
+        liquidity = res.get("liquidity", {}) or {}
+        
+        # Support both flat structure (from main.py flattened) and nested
+        cv = volatility.get("cv") if isinstance(volatility, dict) else res.get("volatility")
+        spread = liquidity.get("spread_pct") if isinstance(liquidity, dict) else res.get("spread")
+        depth = liquidity.get("depth_2pct") if isinstance(liquidity, dict) else res.get("depth_2pct")
+        
+        row = {
+            "Symbol": res.get("symbol", "UNKNOWN").upper(),
+            "Price": res.get("current_price", 0),
+            "Market Cap": res.get("market_cap", 0),
+            "Volume": res.get("total_volume", 0),
+            "CV (Vol)": cv,
+            "Spread %": spread,
+            "Depth ±2%": depth
         }
-
-    metric_df = df[valid_metrics].apply(pd.to_numeric, errors='coerce')
+        rows.append(row)
     
-    # Calculate Summary Stats
-    summary_stats = metric_df.describe().to_dict()
+    metrics_df = pd.DataFrame(rows)
     
-    # Calculate Derived Stats
-    results = df.copy()
-    
-    for metric in valid_metrics:
-        series = metric_df[metric]
-        mean = series.mean()
-        std = series.std()
-        
-        # Deviation from Mean (%)
-        # Handle division by zero if mean is 0
-        if mean != 0:
-            results[f"{metric}_dev_pct"] = ((series - mean) / abs(mean) * 100).fillna(0.0)
-        else:
-            results[f"{metric}_dev_pct"] = 0.0
-        
-        # Z-Score
-        if std > 0:
-            results[f"{metric}_z_score"] = ((series - mean) / std).fillna(0.0)
-        else:
-            results[f"{metric}_z_score"] = 0.0
+    # 2. Build Correlation Matrix
+    # Extract price series for each token
+    price_data = {}
+    for res in results:
+        # res["prices"] is a list of [timestamp, price]
+        # Convert to Series with timestamp index
+        if "prices" in res and res["prices"]:
+            df = pd.DataFrame(res["prices"], columns=["timestamp", "price"])
+            # Ensure timestamp is numeric
+            df["timestamp"] = pd.to_numeric(df["timestamp"])
+            df["timestamp"] = pd.to_datetime(df["timestamp"], unit='ms')
+            df.set_index("timestamp", inplace=True)
             
-        # Percentile Rank (0-100)
-        results[f"{metric}_percentile"] = series.rank(pct=True) * 100
-
-    # Convert back to list of dicts
-    # Replace NaN with None for JSON compliance if needed, or keep as is.
-    # Pandas to_dict handles NaNs as NaN (which is invalid JSON but valid Python float).
-    # For safety, let's replace NaN with None
-    results = results.replace({np.nan: None})
-    
-    comparison_matrix = results.to_dict(orient='records')
-    
-    return {
-        "comparison_matrix": comparison_matrix,
-        "summary_stats": summary_stats
-    }
+            # Resample to daily to align data points (handling different timestamps)
+            # Using 'D' (Daily) mean price
+            daily_prices = df["price"].resample('D').mean()
+            price_data[res.get("symbol", "UNKNOWN").upper()] = daily_prices
+            
+    if price_data:
+        price_df = pd.DataFrame(price_data)
+        # Drop rows with missing data to ensure fair correlation
+        price_df.dropna(inplace=True)
+        if not price_df.empty:
+            correlation_df = price_df.corr(method='pearson')
+        else:
+            correlation_df = pd.DataFrame()
+    else:
+        correlation_df = pd.DataFrame()
+        
+    return metrics_df, correlation_df
