@@ -27,7 +27,10 @@ from src.microanalyst.analysis.metrics import (
     calculate_liquidity_metrics
 )
 from src.comparison.comparator import compare_tokens
+from src.comparison.comparator import compare_tokens
 from rich.layout import Layout
+from rich.live import Live
+import time
 from rich.panel import Panel
 from rich.text import Text
 from rich.console import Group
@@ -182,6 +185,7 @@ def main():
     parser.add_argument("--config", help="Path to custom configuration file")
     parser.add_argument("--compare", help="Comma-separated list of tokens to compare (2-10)")
     parser.add_argument("--charts", action="store_true", help="Display price and volume charts")
+    parser.add_argument("--watch", action="store_true", help="Enable live market monitor mode")
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     args = parser.parse_args()
 
@@ -429,50 +433,93 @@ def main():
             Layout(name="metrics")
         )
 
-        # Header
-        header_text = f"MICROANALYST REPORT: {data['token_symbol_api'].upper()} | {timestamp}"
-        layout["header"].update(Panel(Text(header_text, justify="center", style="bold white"), style="bold white on blue", box=box.HEAVY))
+        def update_dashboard(data, timestamp, status_msg=None):
+            # Header
+            header_text = f"MICROANALYST REPORT: {data['token_symbol_api'].upper()} | {timestamp}"
+            if status_msg:
+                header_text += f" | {status_msg}"
+            layout["header"].update(Panel(Text(header_text, justify="center", style="bold white"), style="bold white on blue", box=box.HEAVY))
 
-        # Overview
-        overview_panel = generate_overview_panel(data["cg_data"])
-        layout["overview"].update(overview_panel)
+            # Overview
+            overview_panel = generate_overview_panel(data["cg_data"])
+            layout["overview"].update(overview_panel)
 
-        # Metrics & Risks
-        metric_table = generate_metric_table(raw_metrics)
-        risk_table = generate_risk_table(raw_metrics)
-        
-        metrics_group = Group(
-            metric_table,
-            Text(""), # Spacer
-            risk_table
-        )
-        layout["metrics"].update(Panel(metrics_group, title="Quantitative Analysis", border_style="blue"))
-
-        # Charts
-        if args.charts:
-            # Calculate dynamic size
-            # Use console height, reserve space for header (3) and upper (approx half)
-            # Safe bet: height=20, width=console.width - 4
-            chart_height = max(15, (console.size.height - 10) // 2)
-            chart_width = console.size.width - 6
+            # Metrics & Risks
+            raw_metrics = {
+                "volatility": data["volatility"],
+                "spread": data["spread"],
+                "volume_delta": data["volume_delta"],
+                "imbalance": data["imbalance"]
+            }
+            metric_table = generate_metric_table(raw_metrics)
+            risk_table = generate_risk_table(raw_metrics)
             
-            p_chart = generate_price_chart(
-                data["dates"], 
-                data["prices"], 
-                f"{data['token_symbol_api'].upper()} Price History",
-                width=chart_width,
-                height=chart_height
+            metrics_group = Group(
+                metric_table,
+                Text(""), # Spacer
+                risk_table
             )
-            
-            # If we want volume too, we might need to split lower or stack
-            # For now, let's just show Price as the primary chart in the layout
-            # Or render volume if there's space?
-            # Let's stick to Price for the layout view to keep it clean
-            layout["lower"].update(Panel(Text.from_ansi(p_chart), title="Price Action", border_style="green"))
-        else:
-            layout["lower"].update(Panel(Text("Charts disabled. Use --charts to view.", justify="center"), title="Charts", border_style="dim"))
+            layout["metrics"].update(Panel(metrics_group, title="Quantitative Analysis", border_style="blue"))
 
-        console.print(layout)
+            # Charts
+            if args.charts:
+                chart_height = max(15, (console.size.height - 10) // 2)
+                chart_width = console.size.width - 6
+                
+                p_chart = generate_price_chart(
+                    data["dates"], 
+                    data["prices"], 
+                    f"{data['token_symbol_api'].upper()} Price History",
+                    width=chart_width,
+                    height=chart_height
+                )
+                layout["lower"].update(Panel(Text.from_ansi(p_chart), title="Price Action", border_style="green"))
+            else:
+                layout["lower"].update(Panel(Text("Charts disabled. Use --charts to view.", justify="center"), title="Charts", border_style="dim"))
+
+        # Initial Render
+        update_dashboard(data, timestamp)
+
+        if args.watch:
+            refresh_interval = config["defaults"].get("refresh_interval", 60)
+            
+            # Callback for rate limits
+            def on_status(msg):
+                # We can't easily update the live layout from here without passing it down or using a shared state
+                # For simplicity, we might just log it or try to update if we had access.
+                # Since we are inside the loop, we can just print? No, Live captures stdout.
+                # We will rely on the main loop to update status if possible, 
+                # or maybe just let the logger handle it (RichHandler works with Live).
+                pass
+
+            # Re-init client with callback if needed, but we already have one.
+            # We can set the callback on the existing instance if we modify the class, 
+            # or just create a new one.
+            cg_client.status_callback = on_status
+
+            with Live(layout, console=console, screen=True, refresh_per_second=4) as live:
+                while True:
+                    try:
+                        time.sleep(refresh_interval)
+                        
+                        # Re-fetch data
+                        # We don't want progress bars in watch mode, so pass None
+                        new_data = analyze_token(resolved_token_symbol, cg_client, binance_client, days, progress=None, task_ids=None)
+                        
+                        if new_data:
+                            new_timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+                            update_dashboard(new_data, new_timestamp, status_msg="[LIVE]")
+                        else:
+                            # Keep old data, maybe show error in header?
+                            update_dashboard(data, datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"), status_msg="[LIVE] (Update Failed)")
+                            
+                    except KeyboardInterrupt:
+                        break
+                    except Exception as e:
+                        logger.error(f"Watch loop error: {e}")
+                        time.sleep(5) # Wait a bit before retry
+        else:
+            console.print(layout)
         
     else:
         if args.save:

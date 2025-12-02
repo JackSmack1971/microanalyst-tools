@@ -13,11 +13,12 @@ class CoinGeckoClient:
     """
     BASE_URL = "https://api.coingecko.com/api/v3"
     
-    def __init__(self):
+    def __init__(self, status_callback=None):
         self.session = requests.Session()
         self.last_request_time = 0
         self.request_interval = 6.0  # Conservative 10 calls/minute for free tier to be safe
         # Free tier is actually ~10-30 calls/min, but we want to avoid 429s aggressively.
+        self.status_callback = status_callback
 
     def _wait_for_rate_limit(self):
         """Ensures we respect the rate limit."""
@@ -37,7 +38,10 @@ class CoinGeckoClient:
             return response.json()
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 429:
-                logger.warning("CoinGecko rate limit hit. Waiting 60s...")
+                msg = "CoinGecko rate limit hit. Waiting 60s..."
+                logger.warning(msg)
+                if self.status_callback:
+                    self.status_callback(msg)
                 time.sleep(60)
                 return self._request(endpoint, params) # Retry once
             logger.error(f"HTTP Error fetching {url}: {e}")

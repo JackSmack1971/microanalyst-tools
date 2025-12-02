@@ -4,6 +4,7 @@ defaults:
   days: 30
   output_format: "terminal"
   theme: "default"
+  refresh_interval: 60
 
 providers:
   binance:
