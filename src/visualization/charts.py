@@ -1,7 +1,7 @@
 import plotext as plt
 from typing import List
 
-def generate_price_chart(dates: List[str], prices: List[float], title: str = "Price History") -> str:
+def generate_price_chart(dates: List[str], prices: List[float], title: str = "Price History", width: int = 80, height: int = 20) -> str:
     """
     Generates an ASCII price chart string.
     
@@ -9,6 +9,8 @@ def generate_price_chart(dates: List[str], prices: List[float], title: str = "Pr
         dates: List of date strings (x-axis).
         prices: List of price values (y-axis).
         title: Chart title.
+        width: Chart width in characters.
+        height: Chart height in characters.
         
     Returns:
         str: Rendered ASCII chart.
@@ -19,7 +21,7 @@ def generate_price_chart(dates: List[str], prices: List[float], title: str = "Pr
     plt.clear_figure()
     plt.theme('clear') # ASCII friendly
     plt.date_form('Y-m-d')
-    plt.plotsize(80, 20)
+    plt.plotsize(width, height)
     
     plt.plot(dates, prices)
     plt.title(title)
@@ -28,7 +30,7 @@ def generate_price_chart(dates: List[str], prices: List[float], title: str = "Pr
     
     return plt.build()
 
-def generate_volume_chart(dates: List[str], volumes: List[float], title: str = "Volume History") -> str:
+def generate_volume_chart(dates: List[str], volumes: List[float], title: str = "Volume History", width: int = 80, height: int = 20) -> str:
     """
     Generates an ASCII volume chart string.
     
@@ -36,6 +38,8 @@ def generate_volume_chart(dates: List[str], volumes: List[float], title: str = "
         dates: List of date strings (x-axis).
         volumes: List of volume values (y-axis).
         title: Chart title.
+        width: Chart width in characters.
+        height: Chart height in characters.
         
     Returns:
         str: Rendered ASCII chart.
@@ -46,7 +50,7 @@ def generate_volume_chart(dates: List[str], volumes: List[float], title: str = "
     plt.clear_figure()
     plt.theme('clear')
     plt.date_form('Y-m-d')
-    plt.plotsize(80, 20)
+    plt.plotsize(width, height)
     
     # Use bar chart for volume if possible, but plotext bar chart might be tricky with many points.
     # For 30-90 days, bar chart is fine if terminal width allows.

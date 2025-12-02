@@ -43,29 +43,8 @@ def generate_report(
     metric_table = generate_metric_table(metrics)
     
     # 3. Risk Factors
-    risks = []
-    spread_val = metrics["spread"] if metrics["spread"] is not None else 0.0
     vol_delta_val = metrics["volume_delta"]
-    imbalance_val = metrics["imbalance"] if metrics["imbalance"] is not None else 1.0
-    
-    if spread_val > 0.5:
-        risks.append(("[bold red]Wide Bid-Ask Spread[/bold red]", f"{spread_val:.2f}%"))
-        
-    if vol_delta_val > 20:
-        risks.append(("[bold yellow]Volume Discrepancy[/bold yellow]", f"{vol_delta_val:.1f}%"))
-        
-    if imbalance_val < 0.5 or imbalance_val > 2.0:
-        risks.append(("[bold magenta]Order Book Imbalance[/bold magenta]", f"{imbalance_val:.2f}"))
-        
-    risk_table = Table(title="Risk Factors", border_style="red", show_header=True)
-    risk_table.add_column("Risk Type", style="bold")
-    risk_table.add_column("Value")
-    
-    if risks:
-        for r_type, r_val in risks:
-            risk_table.add_row(r_type, r_val)
-    else:
-        risk_table.add_row("[green]No critical risks detected[/green]", "-")
+    risk_table = generate_risk_table(metrics)
 
     # 4. Footer / Confidence
     confidence_score = 100.0
@@ -244,5 +223,39 @@ def generate_correlation_table(correlation_df: pd.DataFrame) -> Table:
             row_data.append(formatted_val)
             
         table.add_row(*row_data)
+        
+    return table
+
+def generate_risk_table(metrics: Dict[str, float]) -> Table:
+    """
+    Generates a Risk Factors table based on metrics.
+    """
+    risks = []
+    spread_val = metrics.get("spread")
+    spread_val = spread_val if spread_val is not None else 0.0
+    
+    vol_delta_val = metrics.get("volume_delta", 0.0)
+    
+    imbalance_val = metrics.get("imbalance")
+    imbalance_val = imbalance_val if imbalance_val is not None else 1.0
+    
+    if spread_val > 0.5:
+        risks.append(("[bold red]Wide Bid-Ask Spread[/bold red]", f"{spread_val:.2f}%"))
+        
+    if vol_delta_val > 20:
+        risks.append(("[bold yellow]Volume Discrepancy[/bold yellow]", f"{vol_delta_val:.1f}%"))
+        
+    if imbalance_val < 0.5 or imbalance_val > 2.0:
+        risks.append(("[bold magenta]Order Book Imbalance[/bold magenta]", f"{imbalance_val:.2f}"))
+        
+    table = Table(title="Risk Factors", border_style="red", show_header=True)
+    table.add_column("Risk Type", style="bold")
+    table.add_column("Value")
+    
+    if risks:
+        for r_type, r_val in risks:
+            table.add_row(r_type, r_val)
+    else:
+        table.add_row("[green]No critical risks detected[/green]", "-")
         
     return table

@@ -27,7 +27,19 @@ from src.microanalyst.analysis.metrics import (
     calculate_liquidity_metrics
 )
 from src.comparison.comparator import compare_tokens
-from src.microanalyst.reporting.generator import generate_report, generate_comparison_table, generate_correlation_table
+from rich.layout import Layout
+from rich.panel import Panel
+from rich.text import Text
+from rich.console import Group
+from rich import box
+from src.microanalyst.reporting.generator import (
+    generate_report, 
+    generate_comparison_table, 
+    generate_correlation_table,
+    generate_overview_panel,
+    generate_metric_table,
+    generate_risk_table
+)
 from src.visualization.charts import generate_price_chart, generate_volume_chart
 
 # Configure logging
@@ -400,25 +412,62 @@ def main():
 
     # Routing
     if output_mode == OutputMode.TERMINAL:
-        report_renderable = generate_report(
-            data["token_symbol"],
-            data["cg_data"],
-            data["ticker_24h"],
-            data["volatility_metrics"],
-            data["volume_metrics"],
-            data["liquidity_metrics"],
-            validation_flags={},
-            config=config
+        # Create Layout
+        layout = Layout()
+        layout.split_column(
+            Layout(name="header", size=3),
+            Layout(name="upper", ratio=1),
+            Layout(name="lower", ratio=1)
         )
-        console.print(report_renderable)
+        layout["upper"].split_row(
+            Layout(name="overview"),
+            Layout(name="metrics")
+        )
+
+        # Header
+        header_text = f"MICROANALYST REPORT: {data['token_symbol_api'].upper()} | {timestamp}"
+        layout["header"].update(Panel(Text(header_text, justify="center", style="bold white"), style="bold white on blue", box=box.HEAVY))
+
+        # Overview
+        overview_panel = generate_overview_panel(data["cg_data"])
+        layout["overview"].update(overview_panel)
+
+        # Metrics & Risks
+        metric_table = generate_metric_table(raw_metrics)
+        risk_table = generate_risk_table(raw_metrics)
         
-        # Render Charts if requested
+        metrics_group = Group(
+            metric_table,
+            Text(""), # Spacer
+            risk_table
+        )
+        layout["metrics"].update(Panel(metrics_group, title="Quantitative Analysis", border_style="blue"))
+
+        # Charts
         if args.charts:
-            console.print("\n[bold cyan]Generating Charts...[/bold cyan]")
-            p_chart = generate_price_chart(data["dates"], data["prices"], f"{data['token_symbol_api'].upper()} Price History")
-            v_chart = generate_volume_chart(data["dates"], data["volumes"], f"{data['token_symbol_api'].upper()} Volume History")
-            console.print(p_chart)
-            console.print(v_chart)
+            # Calculate dynamic size
+            # Use console height, reserve space for header (3) and upper (approx half)
+            # Safe bet: height=20, width=console.width - 4
+            chart_height = max(15, (console.size.height - 10) // 2)
+            chart_width = console.size.width - 6
+            
+            p_chart = generate_price_chart(
+                data["dates"], 
+                data["prices"], 
+                f"{data['token_symbol_api'].upper()} Price History",
+                width=chart_width,
+                height=chart_height
+            )
+            
+            # If we want volume too, we might need to split lower or stack
+            # For now, let's just show Price as the primary chart in the layout
+            # Or render volume if there's space?
+            # Let's stick to Price for the layout view to keep it clean
+            layout["lower"].update(Panel(Text.from_ansi(p_chart), title="Price Action", border_style="green"))
+        else:
+            layout["lower"].update(Panel(Text("Charts disabled. Use --charts to view.", justify="center"), title="Charts", border_style="dim"))
+
+        console.print(layout)
         
     else:
         if args.save:
