@@ -59,10 +59,11 @@ def test_interactive_with_token(mock_isatty, mock_prompt, mock_console, mock_bin
 @patch("sys.stdout.isatty", return_value=False)
 def test_non_interactive_missing_token(mock_isatty, mock_console, mock_binance, mock_cg):
     """Test error when token missing and not interactive (or no TTY)."""
-    with patch("sys.argv", ["main.py"]):
-        # Should exit with error from argparse
-        with pytest.raises(SystemExit):
-            main()
+    with patch("sys.argv", ["main.py"]), \
+         patch("argparse.ArgumentParser.print_help") as mock_print_help:
+        # Should print help and return, not exit
+        main()
+        mock_print_help.assert_called_once()
 
 @patch("src.microanalyst.main.CoinGeckoClient")
 @patch("src.microanalyst.main.BinanceClient")
@@ -71,8 +72,9 @@ def test_non_interactive_missing_token(mock_isatty, mock_console, mock_binance, 
 @patch("sys.stdout.isatty", return_value=False)
 def test_interactive_no_tty(mock_isatty, mock_prompt, mock_console, mock_binance, mock_cg):
     """Test --interactive flag ignored if no TTY (should error if token missing)."""
-    with patch("sys.argv", ["main.py", "--interactive"]):
+    with patch("sys.argv", ["main.py", "--interactive"]), \
+         patch("argparse.ArgumentParser.print_help") as mock_print_help:
         # Even with --interactive, if isatty is False, it should behave as non-interactive.
-        # And since token is missing, it should raise SystemExit.
-        with pytest.raises(SystemExit):
-            main()
+        # And since token is missing, it should print help.
+        main()
+        mock_print_help.assert_called_once()

@@ -1,5 +1,6 @@
 import pandas as pd
 from typing import List, Dict, Any, Tuple
+from src.visualization.sparkline import generate_sparkline
 
 def compare_tokens(results: List[Dict[str, Any]]) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -28,9 +29,14 @@ def compare_tokens(results: List[Dict[str, Any]]) -> Tuple[pd.DataFrame, pd.Data
         spread = liquidity.get("spread_pct") if isinstance(liquidity, dict) else res.get("spread")
         depth = liquidity.get("depth_2pct") if isinstance(liquidity, dict) else res.get("depth_2pct")
         
+        # Extract prices for sparkline
+        prices = [p[1] for p in res.get("prices", [])]
+        sparkline = generate_sparkline(prices)
+        
         row = {
             "Symbol": res.get("symbol", "UNKNOWN").upper(),
             "Price": res.get("current_price", 0),
+            "7d Trend": sparkline,
             "Market Cap": res.get("market_cap", 0),
             "Volume": res.get("total_volume", 0),
             "CV (Vol)": cv,
