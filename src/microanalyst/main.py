@@ -272,6 +272,10 @@ def main():
         return
 
     # --- SINGLE TOKEN MODE ---
+    # Frictionless Entry: If no token/compare args and TTY, default to interactive
+    if not args.token and not args.compare and sys.stdout.isatty():
+        args.interactive = True
+
     is_interactive = args.interactive and sys.stdout.isatty()
     search_query = args.token
     
@@ -285,7 +289,8 @@ def main():
             except KeyboardInterrupt:
                 return
         else:
-            parser.error("the following arguments are required: token (or use --interactive)")
+            parser.print_help()
+            return
 
     token_symbol = search_query.lower()
     console.print(f"[bold blue]Starting analysis for {token_symbol.upper()}...[/bold blue]")
