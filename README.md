@@ -5,8 +5,9 @@ A professional-grade cryptocurrency analysis CLI tool for terminal-based market 
 ## Features
 
 - **Real-time Data**: Fetches price, volume, and order book data from CoinGecko and Binance.
-- **Rich Terminal UI**: Structured tables, panels, and semantic color coding.
-- **Multi-Token Comparison**: Compare up to 10 tokens side-by-side.
+- **Command Center Dashboard**: Full-screen, single-view terminal dashboard with dynamic layouts.
+- **Multi-Token Comparison**: Compare up to 10 tokens side-by-side with correlation heatmaps.
+- **Instant-Recall Caching**: Smart disk-based caching to speed up repeated queries and reduce API usage.
 - **Visualizations**: ASCII price and volume charts directly in the terminal.
 - **Export Options**: Save reports as JSON or HTML.
 - **Configurable**: YAML-based configuration for defaults and thresholds.
@@ -33,11 +34,14 @@ python -m microanalyst -i
 
 ### Enhanced CLI Features
 
-#### Comparison Mode
-Compare multiple tokens (2-10) to spot opportunities:
+#### Comparison Mode & Correlation Heatmap
+Compare multiple tokens (2-10) to spot opportunities and view a Pearson correlation heatmap:
 ```bash
 python -m microanalyst --compare btc,eth,sol
 ```
+
+#### Caching
+Data is automatically cached to disk (TTL: 5 min for market data, 1 min for prices). Cached data is indicated by a `(Cached)` label. No configuration required.
 
 #### Visualizations
 Display price and volume charts:
