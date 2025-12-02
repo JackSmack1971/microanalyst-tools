@@ -149,7 +149,7 @@ class TestBinanceGetTicker24h:
             result = client.get_ticker_24h("BTCUSDT")
             
             assert result == expected_data
-            mock_request.assert_called_once_with("ticker/24hr", {"symbol": "BTCUSDT"})
+            mock_request.assert_called_once_with("ticker/24hr", params={"symbol": "BTCUSDT"})
     
     def test_get_ticker_uppercases_symbol(self):
         """Test symbol is uppercased automatically."""

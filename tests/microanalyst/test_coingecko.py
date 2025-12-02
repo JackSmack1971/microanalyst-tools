@@ -5,7 +5,6 @@ Following London (Mockist) TDD approach:
 - Mock external HTTP dependencies
 - Test error handling and retry logic
 - Verify rate limiting behavior
-- Test API response parsing
 """
 
 import pytest
@@ -14,6 +13,15 @@ from unittest.mock import Mock, patch, MagicMock
 import requests
 from src.microanalyst.providers.coingecko import CoinGeckoClient
 
+@pytest.fixture(autouse=True)
+def mock_cache_provider():
+    """Mock the cache provider for all tests in this file."""
+    with patch("src.microanalyst.providers.coingecko.get_cache") as mock_get_cache:
+        # Default to cache miss
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+        mock_get_cache.return_value = mock_cache
+        yield mock_cache
 
 class TestCoinGeckoClientInitialization:
     """Tests for CoinGecko client initialization."""
@@ -161,6 +169,10 @@ class TestCoinGeckoGetTokenData:
             
             result = client.get_token_data("bitcoin")
             
+            # Remove cache flag for comparison
+            if "_from_cache" in result:
+                del result["_from_cache"]
+                
             assert result == expected_data
             mock_request.assert_called_once()
             # Verify endpoint called
@@ -202,6 +214,10 @@ class TestCoinGeckoGetMarketChart:
             
             result = client.get_market_chart("bitcoin", days="30")
             
+            # Remove cache flag for comparison
+            if "_from_cache" in result:
+                del result["_from_cache"]
+                
             assert result == expected_data
             mock_request.assert_called_once()
     

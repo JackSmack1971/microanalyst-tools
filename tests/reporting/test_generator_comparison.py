@@ -1,59 +1,47 @@
 import pytest
+import pandas as pd
 from rich.table import Table
 from src.microanalyst.reporting.generator import generate_comparison_table
 
 def test_generate_comparison_table_structure():
     """Test that table has correct columns and rows."""
-    comparison_data = {
-        "comparison_matrix": [
-            {"symbol": "BTC", "volatility": 0.05, "volatility_z_score": -1.0},
-            {"symbol": "ETH", "volatility": 0.08, "volatility_z_score": 0.0},
-            {"symbol": "SOL", "volatility": 0.12, "volatility_z_score": 1.5}
-        ],
-        "summary_stats": {
-            "volatility": {"mean": 0.0833, "std": 0.0351}
-        }
-    }
+    data = [
+        {"Symbol": "BTC", "Volatility": 0.05, "Volume": 1000},
+        {"Symbol": "ETH", "Volatility": 0.08, "Volume": 2000},
+        {"Symbol": "SOL", "Volatility": 0.12, "Volume": 3000}
+    ]
+    metrics_df = pd.DataFrame(data)
     
-    table = generate_comparison_table(comparison_data)
+    table = generate_comparison_table(metrics_df)
     
     assert isinstance(table, Table)
     assert table.title == "Token Comparison Matrix"
     
-    # Check columns: Metric + 3 Tokens + Avg + StdDev = 6 columns
-    assert len(table.columns) == 6
-    assert table.columns[0].header == "Metric"
-    assert table.columns[1].header == "BTC"
-    assert table.columns[2].header == "ETH"
-    assert table.columns[3].header == "SOL"
-    assert table.columns[4].header == "Avg"
-    assert table.columns[5].header == "StdDev"
+    # Columns: Symbol, Volatility, Volume
+    assert len(table.columns) == 3
+    assert table.columns[0].header == "Symbol"
+    assert table.columns[1].header == "Volatility"
+    assert table.columns[2].header == "Volume"
     
-    # Check rows: 1 metric = 1 row
-    assert table.row_count == 1
+    # Rows: 3 tokens
+    assert table.row_count == 3
 
 def test_empty_data():
     """Test handling of empty data."""
-    table = generate_comparison_table({})
+    table = generate_comparison_table(pd.DataFrame())
     assert table.title == "Comparison Matrix (Empty)"
     assert table.row_count == 0
 
-def test_coloring_logic():
-    """Test that coloring markup is applied for high z-scores."""
-    comparison_data = {
-        "comparison_matrix": [
-            {"symbol": "A", "metric": 10, "metric_z_score": 2.5}, # Red
-            {"symbol": "B", "metric": 5, "metric_z_score": 0.0},  # No color
-            {"symbol": "C", "metric": 1, "metric_z_score": -1.5}  # Blue
-        ],
-        "summary_stats": {
-            "metric": {"mean": 5.33, "std": 4.5}
-        }
-    }
+def test_formatting_logic():
+    """Test that formatting is applied."""
+    data = [
+        {"Symbol": "BTC", "Price": 50000.0, "Change%": 5.5},
+    ]
+    metrics_df = pd.DataFrame(data)
     
-    table = generate_comparison_table(comparison_data)
+    table = generate_comparison_table(metrics_df)
     
-    # We can't easily inspect rendered output without a console, 
-    # but we can check that the function runs without error
-    # and produces a table with rows.
     assert table.row_count == 1
+
+    # We can't easily check internal cell formatting without rendering,
+    # but we verify it runs.

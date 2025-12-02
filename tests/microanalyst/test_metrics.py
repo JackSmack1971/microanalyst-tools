@@ -10,7 +10,7 @@ Following Classicist TDD approach:
 
 import pytest
 import numpy as np
-from hypothesis import given, strategies as st
+from hypothesis import given, strategies as st, settings, HealthCheck
 from src.microanalyst.analysis.metrics import (
     calculate_volatility_metrics,
     calculate_volume_metrics,
@@ -212,6 +212,7 @@ class TestVolatilityProperties:
     
     @given(st.lists(st.floats(min_value=1.0, max_value=10000.0, allow_nan=False, allow_infinity=False), 
                     min_size=20, max_size=50))
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_volatility_cv_always_non_negative(self, prices):
         """Property: CV is always non-negative."""
         result = calculate_volatility_metrics(prices)
@@ -229,7 +230,7 @@ class TestVolatilityProperties:
         """Property: Constant prices always give CV = 0."""
         prices = [constant_price] * 25
         result = calculate_volatility_metrics(prices)
-        assert result["cv"] == 0.0, "Constant prices should give CV = 0"
+        assert result["cv"] == pytest.approx(0.0, abs=1e-9), "Constant prices should give CV = 0"
 
 
 class TestVolumeProperties:

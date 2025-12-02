@@ -9,7 +9,7 @@ def calculate_volatility_metrics(prices: List[float]) -> Dict[str, float]:
     - Bollinger Band Width (20D)
     """
     if not prices or len(prices) < 20:
-        return {"cv": 0.0, "bb_width": 0.0}
+        return {"cv": 0.0, "bb_width": 0.0, "ath_distance": 0.0}
     
     series = pd.Series(prices)
     

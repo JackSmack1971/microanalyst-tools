@@ -1,0 +1,319 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.9, pytest-8.4.2, pluggy-1.6.0 -- C:\Users\click\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: C:\workspaces\microanalyst-tools
+plugins: anyio-4.11.0, hypothesis-6.148.4, cov-7.0.0
+collecting ... collected 134 items
+
+tests/cli/test_conftest.py::test_rich_console_fixture PASSED             [  0%]
+tests/cli/test_conftest.py::test_assert_rich_contains PASSED             [  1%]
+tests/cli/test_conftest.py::test_rich_styles PASSED                      [  2%]
+tests/cli/test_formatters.py::test_format_currency PASSED                [  2%]
+tests/cli/test_formatters.py::test_format_percentage PASSED              [  3%]
+tests/cli/test_formatters.py::test_format_number PASSED                  [  4%]
+tests/cli/test_formatters.py::test_format_large_number PASSED            [  5%]
+tests/cli/test_progress.py::test_create_progress_bar PASSED              [  5%]
+tests/cli/test_progress.py::test_stage_descriptions PASSED               [  6%]
+tests/cli/test_progress.py::test_progress_usage PASSED                   [  7%]
+tests/cli/test_prompts.py::test_prompt_selection PASSED                  [  8%]
+tests/cli/test_prompts.py::test_prompt_empty PASSED                      [  8%]
+tests/cli/test_prompts.py::test_prompt_cancellation PASSED               [  9%]
+tests/cli/test_prompts.py::test_prompt_keyboard_interrupt PASSED         [ 10%]
+tests/cli/test_theme.py::test_get_metric_color_volatility PASSED         [ 11%]
+tests/cli/test_theme.py::test_get_metric_color_spread PASSED             [ 11%]
+tests/cli/test_theme.py::test_get_metric_color_volume_delta PASSED       [ 12%]
+tests/cli/test_theme.py::test_get_metric_color_imbalance PASSED          [ 13%]
+tests/cli/test_theme.py::test_get_metric_color_unknown PASSED            [ 14%]
+tests/cli/test_theme.py::test_generate_error_panel PASSED                [ 14%]
+tests/comparison/test_comparator.py::TestComparator::test_compare_tokens_returns_correct_structure PASSED [ 15%]
+tests/comparison/test_comparator.py::TestComparator::test_compare_tokens_empty_input PASSED [ 16%]
+tests/comparison/test_correlation.py::TestCorrelationLogic::test_compare_tokens_returns_correlation_matrix PASSED [ 17%]
+tests/comparison/test_correlation.py::TestCorrelationLogic::test_compare_tokens_handles_missing_prices PASSED [ 17%]
+tests/comparison/test_correlation.py::TestCorrelationReporting::test_generate_correlation_table_structure PASSED [ 18%]
+tests/config/test_loader.py::test_load_defaults PASSED                   [ 19%]
+tests/config/test_loader.py::test_load_user_config PASSED                [ 20%]
+tests/config/test_loader.py::test_invalid_yaml PASSED                    [ 20%]
+tests/config/test_loader.py::test_validation_error PASSED                [ 21%]
+tests/export/test_html_exporter.py::test_export_html_valid PASSED        [ 22%]
+tests/export/test_html_exporter.py::test_export_html_rendering_error PASSED [ 23%]
+tests/export/test_html_exporter.py::test_export_html_io_error PASSED     [ 23%]
+tests/export/test_json_exporter.py::test_export_json_valid PASSED        [ 24%]
+tests/export/test_json_exporter.py::test_export_json_types PASSED        [ 25%]
+tests/export/test_json_exporter.py::test_export_json_atomic PASSED       [ 26%]
+tests/export/test_json_exporter.py::test_export_json_error PASSED        [ 26%]
+tests/microanalyst/test_binance.py::TestBinanceClientInitialization::test_client_initializes_with_session PASSED [ 27%]
+tests/microanalyst/test_binance.py::TestBinanceRequestMethod::test_request_returns_json_on_success PASSED [ 28%]
+tests/microanalyst/test_binance.py::TestBinanceRequestMethod::test_request_handles_timeout PASSED [ 29%]
+tests/microanalyst/test_binance.py::TestBinanceRequestMethod::test_request_handles_http_error PASSED [ 29%]
+tests/microanalyst/test_binance.py::TestBinanceRequestMethod::test_request_retries_on_429_with_retry_after PASSED [ 30%]
+tests/microanalyst/test_binance.py::TestBinanceRequestMethod::test_request_retries_on_429_without_retry_after PASSED [ 31%]
+tests/microanalyst/test_binance.py::TestBinanceRequestMethod::test_request_raises_on_418_ip_ban PASSED [ 32%]
+tests/microanalyst/test_binance.py::TestBinanceGetTicker24h::test_get_ticker_returns_24h_stats PASSED [ 32%]
+tests/microanalyst/test_binance.py::TestBinanceGetTicker24h::test_get_ticker_uppercases_symbol PASSED [ 33%]
+tests/microanalyst/test_binance.py::TestBinanceGetDepth::test_get_depth_returns_orderbook PASSED [ 34%]
+tests/microanalyst/test_binance.py::TestBinanceGetDepth::test_get_depth_uses_default_limit PASSED [ 35%]
+tests/microanalyst/test_binance.py::TestBinanceGetDepth::test_get_depth_accepts_custom_limit PASSED [ 35%]
+tests/microanalyst/test_binance.py::TestBinanceGetKlines::test_get_klines_returns_candlestick_data PASSED [ 36%]
+tests/microanalyst/test_binance.py::TestBinanceGetKlines::test_get_klines_uses_default_parameters PASSED [ 37%]
+tests/microanalyst/test_binance.py::TestBinanceGetAggTrades::test_get_agg_trades_returns_trade_data PASSED [ 38%]
+tests/microanalyst/test_binance.py::TestBinanceGetAggTrades::test_get_agg_trades_uses_default_limit PASSED [ 38%]
+tests/microanalyst/test_binance.py::TestBinanceIntegration::test_multiple_endpoints_work_together PASSED [ 39%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoClientInitialization::test_client_initializes_with_defaults PASSED [ 40%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoRateLimiting::test_rate_limit_enforced_between_requests PASSED [ 41%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoRateLimiting::test_rate_limit_reset_after_wait PASSED [ 41%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoRequestMethod::test_request_returns_json_on_success PASSED [ 42%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoRequestMethod::test_request_handles_timeout PASSED [ 43%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoRequestMethod::test_request_handles_http_error PASSED [ 44%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoRequestMethod::test_request_retries_on_429 PASSED [ 44%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoGetTokenData::test_get_token_data_returns_parsed_response FAILED [ 45%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoGetTokenData::test_get_token_data_passes_correct_params PASSED [ 46%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoGetMarketChart::test_get_market_chart_returns_ohlcv_data FAILED [ 47%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoGetMarketChart::test_get_market_chart_uses_default_days FAILED [ 47%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoGetSimplePrice::test_get_simple_price_returns_price_data PASSED [ 48%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoGetSimplePrice::test_get_simple_price_joins_multiple_ids PASSED [ 49%]
+tests/microanalyst/test_coingecko.py::TestCoinGeckoIntegration::test_multiple_requests_respect_rate_limit FAILED [ 50%]
+tests/microanalyst/test_metrics.py::TestVolatilityMetrics::test_calculate_volatility_with_valid_prices PASSED [ 50%]
+tests/microanalyst/test_metrics.py::TestVolatilityMetrics::test_calculate_volatility_with_insufficient_data PASSED [ 51%]
+tests/microanalyst/test_metrics.py::TestVolatilityMetrics::test_calculate_volatility_with_empty_list PASSED [ 52%]
+tests/microanalyst/test_metrics.py::TestVolatilityMetrics::test_calculate_volatility_with_constant_prices PASSED [ 52%]
+tests/microanalyst/test_metrics.py::TestVolatilityMetrics::test_calculate_volatility_cv_calculation PASSED [ 53%]
+tests/microanalyst/test_metrics.py::TestVolumeMetrics::test_calculate_volume_with_valid_data PASSED [ 54%]
+tests/microanalyst/test_metrics.py::TestVolumeMetrics::test_calculate_volume_with_empty_data PASSED [ 55%]
+tests/microanalyst/test_metrics.py::TestVolumeMetrics::test_calculate_volume_change_formula PASSED [ 55%]
+tests/microanalyst/test_metrics.py::TestVolumeMetrics::test_calculate_volume_with_less_than_7_days PASSED [ 56%]
+tests/microanalyst/test_metrics.py::TestLiquidityMetrics::test_calculate_liquidity_with_valid_orderbook PASSED [ 57%]
+tests/microanalyst/test_metrics.py::TestLiquidityMetrics::test_calculate_liquidity_with_empty_orderbook PASSED [ 58%]
+tests/microanalyst/test_metrics.py::TestLiquidityMetrics::test_calculate_spread_formula PASSED [ 58%]
+tests/microanalyst/test_metrics.py::TestLiquidityMetrics::test_calculate_imbalance_ratio PASSED [ 59%]
+tests/microanalyst/test_metrics.py::TestVolatilityProperties::test_volatility_cv_always_non_negative PASSED [ 60%]
+tests/microanalyst/test_metrics.py::TestVolatilityProperties::test_volatility_bb_width_always_non_negative PASSED [ 61%]
+tests/microanalyst/test_metrics.py::TestVolatilityProperties::test_volatility_constant_prices_gives_zero_cv FAILED [ 61%]
+tests/microanalyst/test_metrics.py::TestVolumeProperties::test_volume_change_is_finite PASSED [ 62%]
+tests/microanalyst/test_metrics.py::TestLiquidityProperties::test_spread_always_non_negative PASSED [ 63%]
+tests/microanalyst/test_metrics.py::TestLiquidityProperties::test_imbalance_always_non_negative PASSED [ 64%]
+tests/reporting/test_generator_comparison.py::test_generate_comparison_table_structure PASSED [ 64%]
+tests/reporting/test_generator_comparison.py::test_empty_data PASSED     [ 65%]
+tests/reporting/test_generator_comparison.py::test_formatting_logic PASSED [ 66%]
+tests/reporting/test_generator_integration.py::test_generate_report_returns_renderable PASSED [ 67%]
+tests/reporting/test_generator_integration.py::test_generate_report_with_risks PASSED [ 67%]
+tests/reporting/test_generator_panels.py::test_generate_overview_panel_structure PASSED [ 68%]
+tests/reporting/test_generator_panels.py::test_generate_overview_panel_content PASSED [ 69%]
+tests/reporting/test_generator_panels.py::test_generate_overview_panel_missing_data PASSED [ 70%]
+tests/reporting/test_generator_tables.py::test_generate_metric_table_structure PASSED [ 70%]
+tests/reporting/test_generator_tables.py::test_generate_metric_table_content PASSED [ 71%]
+tests/reporting/test_generator_tables.py::test_generate_metric_table_empty PASSED [ 72%]
+tests/test_caching.py::test_get_token_data_cache_hit PASSED              [ 73%]
+tests/test_caching.py::test_get_token_data_cache_miss PASSED             [ 73%]
+tests/test_caching.py::test_get_market_chart_caching PASSED              [ 74%]
+tests/test_main.py::test_main_token_not_found PASSED                     [ 75%]
+tests/test_main.py::test_main_success PASSED                             [ 76%]
+tests/test_main_args.py::test_args_output_default PASSED                 [ 76%]
+tests/test_main_args.py::test_args_output_json PASSED                    [ 77%]
+tests/test_main_args.py::test_args_output_invalid PASSED                 [ 78%]
+tests/test_main_args.py::test_output_mode_enum PASSED                    [ 79%]
+tests/test_main_charts.py::test_charts_flag PASSED                       [ 79%]
+tests/test_main_charts.py::test_no_charts_flag PASSED                    [ 80%]
+tests/test_main_charts.py::test_charts_comparison PASSED                 [ 81%]
+tests/test_main_compare.py::test_compare_arg_parsing PASSED              [ 82%]
+tests/test_main_compare.py::test_compare_validation_min PASSED           [ 82%]
+tests/test_main_compare.py::test_compare_validation_max PASSED           [ 83%]
+tests/test_main_compare.py::test_compare_execution PASSED                [ 84%]
+tests/test_main_config.py::test_config_arg PASSED                        [ 85%]
+tests/test_main_config.py::test_config_defaults PASSED                   [ 85%]
+tests/test_main_config.py::test_config_override PASSED                   [ 86%]
+tests/test_main_config.py::test_config_error PASSED                      [ 87%]
+tests/test_main_export.py::test_export_json_flow PASSED                  [ 88%]
+tests/test_main_export.py::test_export_html_flow PASSED                  [ 88%]
+tests/test_main_export.py::test_export_custom_path PASSED                [ 89%]
+tests/test_main_export.py::test_export_error_handling PASSED             [ 90%]
+tests/test_main_interactive.py::test_interactive_no_token PASSED         [ 91%]
+tests/test_main_interactive.py::test_interactive_with_token PASSED       [ 91%]
+tests/test_main_interactive.py::test_non_interactive_missing_token PASSED [ 92%]
+tests/test_main_interactive.py::test_interactive_no_tty PASSED           [ 93%]
+tests/test_main_nocolor.py::test_no_color_flag PASSED                    [ 94%]
+tests/test_main_nocolor.py::test_no_color_env PASSED                     [ 94%]
+tests/test_main_progress.py::test_main_progress_flow PASSED              [ 95%]
+tests/test_main_progress.py::test_main_progress_stop_on_error PASSED     [ 96%]
+tests/test_readme.py::test_readme_exists PASSED                          [ 97%]
+tests/test_readme.py::test_readme_content PASSED                         [ 97%]
+tests/visualization/test_charts.py::test_generate_price_chart PASSED     [ 98%]
+tests/visualization/test_charts.py::test_generate_volume_chart PASSED    [ 99%]
+tests/visualization/test_charts.py::test_empty_data PASSED               [100%]
+
+================================== FAILURES ===================================
+____ TestCoinGeckoGetTokenData.test_get_token_data_returns_parsed_response ____
+
+self = <test_coingecko.TestCoinGeckoGetTokenData object at 0x00000225C3085090>
+
+    def test_get_token_data_returns_parsed_response(self):
+        """Test get_token_data returns market data."""
+        client = CoinGeckoClient()
+        expected_data = {
+            "id": "bitcoin",
+            "symbol": "btc",
+            "market_data": {
+                "current_price": {"usd": 50000}
+            }
+        }
+    
+        with patch.object(client, '_request') as mock_request:
+            mock_request.return_value = expected_data
+    
+            result = client.get_token_data("bitcoin")
+    
+>           assert result == expected_data
+E           AssertionError: assert {'_from_cache...ymbol': 'btc'} == {'id': 'bitco...ymbol': 'btc'}
+E             
+E             Omitting 3 identical items, use -vv to show
+E             Left contains 1 more item:
+E             {'_from_cache': True}
+E             
+E             Full diff:
+E               {...
+E             
+E             ...Full output truncated (9 lines hidden), use '-vv' to show
+
+tests\microanalyst\test_coingecko.py:164: AssertionError
+____ TestCoinGeckoGetMarketChart.test_get_market_chart_returns_ohlcv_data _____
+
+self = <test_coingecko.TestCoinGeckoGetMarketChart object at 0x00000225C3085310>
+
+    def test_get_market_chart_returns_ohlcv_data(self):
+        """Test get_market_chart returns historical data."""
+        client = CoinGeckoClient()
+        expected_data = {
+            "prices": [[1000, 50000], [2000, 51000]],
+            "total_volumes": [[1000, 1000000], [2000, 1100000]]
+        }
+    
+        with patch.object(client, '_request') as mock_request:
+            mock_request.return_value = expected_data
+    
+            result = client.get_market_chart("bitcoin", days="30")
+    
+>           assert result == expected_data
+E           AssertionError: assert {'_from_cache...00, 1100000]]} == {'prices': [[...00, 1100000]]}
+E             
+E             Omitting 2 identical items, use -vv to show
+E             Left contains 1 more item:
+E             {'_from_cache': True}
+E             
+E             Full diff:
+E               {...
+E             
+E             ...Full output truncated (22 lines hidden), use '-vv' to show
+
+tests\microanalyst\test_coingecko.py:205: AssertionError
+_____ TestCoinGeckoGetMarketChart.test_get_market_chart_uses_default_days _____
+
+self = <test_coingecko.TestCoinGeckoGetMarketChart object at 0x00000225C3085450>
+
+    def test_get_market_chart_uses_default_days(self):
+        """Test default parameter for days."""
+        client = CoinGeckoClient()
+    
+        with patch.object(client, '_request') as mock_request:
+            mock_request.return_value = {}
+    
+            client.get_market_chart("bitcoin")
+    
+>           args = mock_request.call_args[0]
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: 'NoneType' object is not subscriptable
+
+tests\microanalyst\test_coingecko.py:217: TypeError
+_____ TestCoinGeckoIntegration.test_multiple_requests_respect_rate_limit ______
+
+self = <test_coingecko.TestCoinGeckoIntegration object at 0x00000225C3085810>
+mock_sleep = <MagicMock name='sleep' id='2361211803296'>
+
+    @patch('time.sleep')
+    def test_multiple_requests_respect_rate_limit(self, mock_sleep):
+        """Integration: Multiple requests properly rate limited."""
+        client = CoinGeckoClient()
+        client.request_interval = 0.1  # Fast for testing
+    
+        with patch.object(client.session, 'get') as mock_get:
+            mock_response = Mock()
+            mock_response.json.return_value = {}
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
+    
+            # Make 3 requests
+            client.get_token_data("bitcoin")
+            client.get_market_chart("ethereum")
+            client.get_simple_price(["solana"])
+    
+            # Should have made 3 API calls
+>           assert mock_get.call_count == 3
+E           AssertionError: assert 2 == 3
+E            +  where 2 = <MagicMock name='get' id='2361211807664'>.call_count
+
+tests\microanalyst\test_coingecko.py:278: AssertionError
+___ TestVolatilityProperties.test_volatility_constant_prices_gives_zero_cv ____
+
+self = <test_metrics.TestVolatilityProperties object at 0x00000225C3089A70>
+
+    @given(st.floats(min_value=1.0, max_value=10000.0))
+>   def test_volatility_constant_prices_gives_zero_cv(self, constant_price):
+               ^^^^^^^
+
+tests\microanalyst\test_metrics.py:228: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <test_metrics.TestVolatilityProperties object at 0x00000225C3089A70>
+constant_price = 1.9
+
+    @given(st.floats(min_value=1.0, max_value=10000.0))
+    def test_volatility_constant_prices_gives_zero_cv(self, constant_price):
+        """Property: Constant prices always give CV = 0."""
+        prices = [constant_price] * 25
+        result = calculate_volatility_metrics(prices)
+>       assert result["cv"] == 0.0, "Constant prices should give CV = 0"
+E       AssertionError: Constant prices should give CV = 0
+E       assert np.float64(1.1927543469390515e-16) == 0.0
+E       Falsifying example: test_volatility_constant_prices_gives_zero_cv(
+E           self=<test_metrics.TestVolatilityProperties object at 0x00000225C3089A70>,
+E           constant_price=1.9,
+E       )
+
+tests\microanalyst\test_metrics.py:232: AssertionError
+============================== warnings summary ===============================
+tests/reporting/test_generator_integration.py: 2 warnings
+tests/test_main.py: 1 warning
+tests/test_main_charts.py: 2 warnings
+tests/test_main_config.py: 3 warnings
+tests/test_main_interactive.py: 2 warnings
+tests/test_main_nocolor.py: 2 warnings
+tests/test_main_progress.py: 1 warning
+  C:\workspaces\microanalyst-tools\src\microanalyst\reporting\generator.py:30: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+tests/test_main.py: 1 warning
+tests/test_main_args.py: 1 warning
+tests/test_main_charts.py: 2 warnings
+tests/test_main_config.py: 4 warnings
+tests/test_main_export.py: 4 warnings
+tests/test_main_interactive.py: 2 warnings
+tests/test_main_nocolor.py: 2 warnings
+tests/test_main_progress.py: 1 warning
+  C:\workspaces\microanalyst-tools\src\microanalyst\main.py:325: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+tests/test_main_args.py::test_args_output_json
+tests/test_main_config.py::test_config_defaults
+tests/test_main_export.py::test_export_json_flow
+tests/test_main_export.py::test_export_html_flow
+tests/test_main_export.py::test_export_error_handling
+  C:\workspaces\microanalyst-tools\src\microanalyst\main.py:427: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    date_str = datetime.utcnow().strftime("%Y%m%d")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/microanalyst/test_coingecko.py::TestCoinGeckoGetTokenData::test_get_token_data_returns_parsed_response
+FAILED tests/microanalyst/test_coingecko.py::TestCoinGeckoGetMarketChart::test_get_market_chart_returns_ohlcv_data
+FAILED tests/microanalyst/test_coingecko.py::TestCoinGeckoGetMarketChart::test_get_market_chart_uses_default_days
+FAILED tests/microanalyst/test_coingecko.py::TestCoinGeckoIntegration::test_multiple_requests_respect_rate_limit
+FAILED tests/microanalyst/test_metrics.py::TestVolatilityProperties::test_volatility_constant_prices_gives_zero_cv
+================= 5 failed, 129 passed, 35 warnings in 12.65s =================

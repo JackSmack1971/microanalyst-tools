@@ -91,9 +91,13 @@ def test_charts_comparison(mock_clients_charts, rich_console):
     
     with patch.object(sys, "argv", test_args), \
          patch("src.microanalyst.main.console", rich_console), \
-         patch("src.microanalyst.main.generate_price_chart") as mock_p_chart:
+         patch("src.microanalyst.main.generate_price_chart") as mock_p_chart, \
+         patch("src.microanalyst.main.compare_tokens") as mock_compare:
         
         mock_p_chart.return_value = "Mock Chart"
+        # Mock compare_tokens return
+        import pandas as pd
+        mock_compare.return_value = (pd.DataFrame(), pd.DataFrame())
         
         main()
         

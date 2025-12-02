@@ -78,6 +78,14 @@ def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client:
     try:
         cg_data = cg_client.get_token_data(token_id)
         market_chart = cg_client.get_market_chart(token_id, days=days)
+        
+        # Check for cache hit
+        is_cached = cg_data.get("_from_cache", False) or market_chart.get("_from_cache", False)
+        
+        # Clean up cache flags
+        if cg_data: cg_data.pop("_from_cache", None)
+        if market_chart: market_chart.pop("_from_cache", None)
+            
     except Exception as e:
         logger.error(f"Data fetch failed for {token_id}: {e}")
         return None
@@ -87,7 +95,10 @@ def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client:
         
     if progress and task_ids:
         progress.update(task_ids["market"], advance=1)
-        progress.update(task_ids["orderbook"], advance=0, description=f"Fetching orderbook for {token_symbol_api}...")
+        desc = f"Fetching orderbook for {token_symbol_api}..."
+        if is_cached:
+            desc += " [green](Cached)[/green]"
+        progress.update(task_ids["orderbook"], advance=0, description=desc)
 
     # Binance Data
     binance_symbol = f"{token_symbol_api.upper()}USDT"
@@ -303,6 +314,11 @@ def main():
         data = analyze_token(resolved_token_symbol, cg_client, binance_client, days, progress, task_ids)
         
     if not data:
+        console.print(generate_error_panel(
+            "Analysis Failed",
+            f"Could not analyze token '{resolved_token_symbol}'.",
+            ["Check token symbol", "Verify network connection", "Try again later"]
+        ))
         return
 
     # 3. Report / Export

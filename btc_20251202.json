@@ -1,0 +1,45 @@
+{
+  "token_symbol": "btc",
+  "timestamp": "2025-12-02 01:06:35 UTC",
+  "overview": {
+    "name": "Bitcoin",
+    "symbol": "btc",
+    "rank": 1,
+    "price": "$50,000.00",
+    "market_cap": "$1,000,000.00",
+    "volume_24h": "$50,000.00"
+  },
+  "metrics": [
+    {
+      "name": "Volatility (CV)",
+      "value": "0.00",
+      "signal": "OK",
+      "signal_class": "signal-ok"
+    },
+    {
+      "name": "Spread",
+      "value": "0.00%",
+      "signal": "OK",
+      "signal_class": "signal-ok"
+    },
+    {
+      "name": "Volume Delta",
+      "value": "98.0%",
+      "signal": "HIGH",
+      "signal_class": "signal-high"
+    },
+    {
+      "name": "Imbalance",
+      "value": "0.00",
+      "signal": "WARN",
+      "signal_class": "signal-warn"
+    }
+  ],
+  "risks": [
+    {
+      "type": "Volume Discrepancy",
+      "value": "98.0%"
+    }
+  ],
+  "confidence_score": 40
+}

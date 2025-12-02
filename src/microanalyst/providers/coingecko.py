@@ -2,6 +2,7 @@ import time
 import requests
 import logging
 from typing import Dict, Any, Optional, List
+from src.cache.manager import get_cache
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,15 @@ class CoinGeckoClient:
         Fetches detailed token data including market cap, supply, and ATH.
         Endpoint: /coins/{id}
         """
+        # Check Cache
+        cache = get_cache()
+        cache_key = f"coingecko:token:{token_id}"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data:
+            cached_data["_from_cache"] = True
+            return cached_data
+
         params = {
             "localization": "false",
             "tickers": "false",
@@ -58,28 +68,66 @@ class CoinGeckoClient:
             "developer_data": "false",
             "sparkline": "false"
         }
-        return self._request(f"coins/{token_id}", params=params)
+        data = self._request(f"coins/{token_id}", params=params)
+        
+        if data:
+            # Cache for 5 minutes
+            cache.set(cache_key, data, expire=300)
+            data["_from_cache"] = False
+            
+        return data
 
     def get_market_chart(self, token_id: str, days: str = "30") -> Optional[Dict[str, Any]]:
         """
         Fetches historical OHLCV data.
         Endpoint: /coins/{id}/market_chart
         """
+        # Check Cache
+        cache = get_cache()
+        cache_key = f"coingecko:chart:{token_id}:{days}"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data:
+            cached_data["_from_cache"] = True
+            return cached_data
+
         params = {
             "vs_currency": "usd",
             "days": days
         }
-        return self._request(f"coins/{token_id}/market_chart", params=params)
+        data = self._request(f"coins/{token_id}/market_chart", params=params)
+        
+        if data:
+            # Cache for 5 minutes
+            cache.set(cache_key, data, expire=300)
+            data["_from_cache"] = False
+            
+        return data
 
     def get_simple_price(self, ids: List[str], vs_currencies: str = "usd") -> Optional[Dict[str, Any]]:
         """
         Fetches simple price data.
         Endpoint: /simple/price
         """
+        # Simple price is often real-time critical, maybe shorter cache or no cache?
+        # Let's cache for 1 minute to avoid spamming during rapid testing
+        cache = get_cache()
+        ids_str = ",".join(sorted(ids))
+        cache_key = f"coingecko:price:{ids_str}:{vs_currencies}"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data:
+            return cached_data
+
         params = {
             "ids": ",".join(ids),
             "vs_currencies": vs_currencies,
             "include_market_cap": "true",
             "include_24hr_vol": "true"
         }
-        return self._request("simple/price", params=params)
+        data = self._request("simple/price", params=params)
+        
+        if data:
+            cache.set(cache_key, data, expire=60)
+            
+        return data
