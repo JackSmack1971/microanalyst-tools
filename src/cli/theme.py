@@ -28,6 +28,10 @@ METRIC_THRESHOLDS: Dict[str, Dict[str, float]] = {
     "imbalance": {
         "high": 2.0,   # > 2.0 ratio (buy pressure)
         "low": 0.5     # < 0.5 ratio (sell pressure)
+    },
+    "rsi": {
+        "overbought": 70.0,
+        "oversold": 30.0
     }
 }
 
@@ -41,7 +45,9 @@ SEVERITY_STYLES: Dict[str, str] = {
     "info": "cyan"
 }
 
-def get_metric_color(metric_type: str, value: float) -> str:
+from typing import Union
+
+def get_metric_color(metric_type: str, value: Union[float, str]) -> str:
     """
     Returns the Rich color style for a given metric value based on thresholds.
     
@@ -88,6 +94,25 @@ def get_metric_color(metric_type: str, value: float) -> str:
             return SEVERITY_STYLES["warning"]
         else:
             return SEVERITY_STYLES["healthy"]
+
+    elif metric_type == "rsi":
+        if value > thresholds["overbought"]:
+            return SEVERITY_STYLES["critical"] # Sell signal
+        elif value < thresholds["oversold"]:
+            return SEVERITY_STYLES["healthy"] # Buy signal
+        else:
+            return SEVERITY_STYLES["neutral"]
+
+    elif metric_type == "trend":
+        # Value is a string here, but type hint says float. 
+        # We should handle string values gracefully or update type hint.
+        # For now, we assume the caller might pass a string despite the hint.
+        if str(value) == "BULLISH":
+            return SEVERITY_STYLES["healthy"]
+        elif str(value) == "BEARISH":
+            return SEVERITY_STYLES["critical"]
+        else:
+            return SEVERITY_STYLES["neutral"]
 
     return SEVERITY_STYLES["neutral"]
 

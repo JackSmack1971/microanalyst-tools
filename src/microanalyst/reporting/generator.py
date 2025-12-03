@@ -81,7 +81,9 @@ def generate_metric_table(metrics: Dict[str, float]) -> Table:
         ("Volatility (CV)", "volatility", lambda v: format_number(v, 2)),
         ("Spread", "spread", lambda v: format_percentage(v / 100.0, 2)),
         ("Volume Delta", "volume_delta", lambda v: format_percentage(v / 100.0, 1)),
-        ("Imbalance", "imbalance", lambda v: format_number(v, 2))
+        ("Imbalance", "imbalance", lambda v: format_number(v, 2)),
+        ("RSI (14D)", "rsi", lambda v: format_number(v, 1)),
+        ("Trend (20/50)", "trend", lambda v: str(v))
     ]
     
     for label, metric_type, formatter in metric_defs:

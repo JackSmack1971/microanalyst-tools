@@ -108,3 +108,53 @@ def calculate_liquidity_metrics(order_book: Dict[str, Any]) -> Dict[str, float]:
         "imbalance": imbalance,
         "depth_2pct": depth_2pct
     }
+
+def calculate_technical_indicators(prices: List[float]) -> Dict[str, Any]:
+    """
+    Calculates technical indicators:
+    - RSI (14-period)
+    - SMA (20, 50)
+    - Trend Signal
+    """
+    if not prices or len(prices) < 50:
+        # Not enough data for SMA-50
+        return {
+            "rsi": None,
+            "sma_20": None,
+            "sma_50": None,
+            "trend": "NEUTRAL"
+        }
+        
+    series = pd.Series(prices)
+    
+    # RSI (14)
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0))
+    loss = (-delta.where(delta < 0, 0))
+    
+    # Use simple rolling average as requested
+    avg_gain = gain.rolling(window=14).mean()
+    avg_loss = loss.rolling(window=14).mean()
+    
+    rs = avg_gain / avg_loss
+    rsi_series = 100 - (100 / (1 + rs))
+    current_rsi = rsi_series.iloc[-1]
+    
+    # SMA
+    sma_20 = series.rolling(window=20).mean().iloc[-1]
+    sma_50 = series.rolling(window=50).mean().iloc[-1]
+    current_price = prices[-1]
+    
+    # Trend Signal
+    trend = "NEUTRAL"
+    if current_price > sma_20 > sma_50:
+        trend = "BULLISH"
+    elif current_price < sma_20 < sma_50:
+        trend = "BEARISH"
+        
+    return {
+        "rsi": current_rsi if not pd.isna(current_rsi) else None,
+        "sma_20": sma_20,
+        "sma_50": sma_50,
+        "trend": trend
+    }

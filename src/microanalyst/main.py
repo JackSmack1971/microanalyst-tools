@@ -24,7 +24,8 @@ from src.microanalyst.providers.binance import BinanceClient
 from src.microanalyst.analysis.metrics import (
     calculate_volatility_metrics,
     calculate_volume_metrics,
-    calculate_liquidity_metrics
+    calculate_liquidity_metrics,
+    calculate_technical_indicators
 )
 from src.comparison.comparator import compare_tokens
 from src.comparison.comparator import compare_tokens
@@ -142,6 +143,7 @@ def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client:
     volatility_metrics = calculate_volatility_metrics(prices)
     volume_metrics = calculate_volume_metrics(prices, volumes)
     liquidity_metrics = calculate_liquidity_metrics(depth)
+    ta_metrics = calculate_technical_indicators(prices)
     
     # Calculate derived values
     cg_vol = cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0)
@@ -159,6 +161,7 @@ def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client:
         "volatility_metrics": volatility_metrics,
         "volume_metrics": volume_metrics,
         "liquidity_metrics": liquidity_metrics,
+        "ta_metrics": ta_metrics,
         "vol_delta": vol_delta,
         # Flattened metrics for comparison
         "volatility": volatility_metrics.get("cv"),
@@ -366,14 +369,18 @@ def main():
         "volatility": data["volatility"],
         "spread": data["spread"],
         "volume_delta": data["volume_delta"],
-        "imbalance": data["imbalance"]
+        "imbalance": data["imbalance"],
+        "rsi": data["ta_metrics"].get("rsi"),
+        "trend": data["ta_metrics"].get("trend")
     }
     
     metric_labels = {
         "volatility": "Volatility (CV)",
         "spread": "Spread",
         "volume_delta": "Volume Delta",
-        "imbalance": "Imbalance"
+        "imbalance": "Imbalance",
+        "rsi": "RSI (14D)",
+        "trend": "Trend (20/50)"
     }
     
     for key, val in raw_metrics.items():
@@ -393,6 +400,8 @@ def main():
             elif key == "spread": fmt_val = format_percentage(val / 100.0, 2)
             elif key == "volume_delta": fmt_val = format_percentage(val / 100.0, 1)
             elif key == "imbalance": fmt_val = format_number(val, 2)
+            elif key == "rsi": fmt_val = format_number(val, 1)
+            elif key == "trend": fmt_val = str(val)
 
             report_data["metrics"].append({
                 "name": metric_labels.get(key, key),
@@ -449,7 +458,9 @@ def main():
                 "volatility": data["volatility"],
                 "spread": data["spread"],
                 "volume_delta": data["volume_delta"],
-                "imbalance": data["imbalance"]
+                "imbalance": data["imbalance"],
+                "rsi": data["ta_metrics"].get("rsi"),
+                "trend": data["ta_metrics"].get("trend")
             }
             metric_table = generate_metric_table(raw_metrics)
             risk_table = generate_risk_table(raw_metrics)
