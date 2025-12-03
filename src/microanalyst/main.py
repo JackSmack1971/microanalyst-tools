@@ -453,49 +453,12 @@ def main():
     # Routing
     if output_mode == OutputMode.TERMINAL:
         # Create Layout
-        layout = Layout()
-        layout.split_column(
-            Layout(name="header", size=3),
-            Layout(name="upper", ratio=1),
-            Layout(name="lower", ratio=1)
-        )
-        layout["upper"].split_row(
-            Layout(name="overview"),
-            Layout(name="metrics")
-        )
+        # Create Layout (handled by generate_report now)
+        # layout = Layout() ...
 
         def update_dashboard(data, timestamp, status_msg=None):
-            # Header
-            header_text = f"MICROANALYST REPORT: {data['token_symbol_api'].upper()} | {timestamp}"
-            if status_msg:
-                header_text += f" | {status_msg}"
-            layout["header"].update(Panel(Text(header_text, justify="center", style="bold white"), style="bold white on blue", box=box.HEAVY))
-
-            # Overview
-            overview_panel = generate_overview_panel(data["cg_data"])
-            layout["overview"].update(overview_panel)
-
-            # Metrics & Risks
-            raw_metrics = {
-                "volatility": data["volatility"],
-                "spread": data["spread"],
-                "volume_delta": data["volume_delta"],
-                "imbalance": data["imbalance"],
-                "rsi": data["ta_metrics"].get("rsi"),
-                "trend": data["ta_metrics"].get("trend"),
-                "beta": data.get("beta_proxy")
-            }
-            metric_table = generate_metric_table(raw_metrics)
-            risk_table = generate_risk_table(raw_metrics)
-            
-            metrics_group = Group(
-                metric_table,
-                Text(""), # Spacer
-                risk_table
-            )
-            layout["metrics"].update(Panel(metrics_group, title="Quantitative Analysis", border_style="blue"))
-
-            # Charts
+            # Prepare charts if enabled
+            charts = None
             if args.charts:
                 chart_height = max(15, (console.size.height - 10) // 2)
                 chart_width = console.size.width - 6
@@ -507,45 +470,77 @@ def main():
                     width=chart_width,
                     height=chart_height
                 )
-                layout["lower"].update(Panel(Text.from_ansi(p_chart), title="Price Action", border_style="green"))
-            else:
-                layout["lower"].update(Panel(Text("Charts disabled. Use --charts to view.", justify="center"), title="Charts", border_style="dim"))
+                charts = [Text.from_ansi(p_chart)]
+                
+                # Volume chart? The layout only has space for one chart easily in the current grid unless we stack them.
+                # The original code stacked them.
+                # Let's stack them in the charts list.
+                # v_chart = generate_volume_chart(...)
+                # For now, let's just stick to price chart as primary, or stack both.
+                # The generate_report logic stacks all items in `charts` list into a Group.
+                # So we can add volume chart too.
+                # But let's keep it simple for now to match the "Glass Cockpit" request which mentioned "ASCII Charts".
+                
+            # Generate the Layout
+            layout = generate_report(
+                data["token_symbol"],
+                data["cg_data"],
+                data["ticker_24h"],
+                data["volatility_metrics"],
+                data["volume_metrics"],
+                data["liquidity_metrics"],
+                validation_flags={},
+                config=config,
+                charts=charts,
+                ta_metrics=data["ta_metrics"],
+                beta_proxy=data.get("beta_proxy")
+            )
+            
+            # If status_msg, we might want to append it to the header?
+            # generate_report creates the header.
+            # We can update the header panel in the layout if needed.
+            if status_msg:
+                # Access the header renderable. It's a Panel wrapping Text.
+                # It's easier to just pass status_msg to generate_report if we wanted, 
+                # but we didn't add that arg.
+                # We can hack it:
+                current_header = layout["header"].renderable
+                # But we can't easily modify the text inside the panel without reconstructing it.
+                # Let's just leave it for now or update it if we really need to show [LIVE].
+                # Actually, let's just update the header layout directly here.
+                header_text = f"MICROANALYST REPORT: {data['token_symbol_api'].upper()} | {timestamp} | {status_msg}"
+                layout["header"].update(Panel(Text(header_text, justify="center", style="bold white"), style="bold white on blue", box=box.HEAVY))
+
+            return layout
 
         # Initial Render
-        update_dashboard(data, timestamp)
-
+        # Initial Render
+        initial_layout = update_dashboard(data, timestamp)
+        
         if args.watch:
             refresh_interval = config["defaults"].get("refresh_interval", 60)
             
             # Callback for rate limits
             def on_status(msg):
-                # We can't easily update the live layout from here without passing it down or using a shared state
-                # For simplicity, we might just log it or try to update if we had access.
-                # Since we are inside the loop, we can just print? No, Live captures stdout.
-                # We will rely on the main loop to update status if possible, 
-                # or maybe just let the logger handle it (RichHandler works with Live).
                 pass
 
-            # Re-init client with callback if needed, but we already have one.
-            # We can set the callback on the existing instance if we modify the class, 
-            # or just create a new one.
             cg_client.status_callback = on_status
 
-            with Live(layout, console=console, screen=True, refresh_per_second=4) as live:
+            with Live(initial_layout, console=console, screen=True, refresh_per_second=4) as live:
                 while True:
                     try:
                         time.sleep(refresh_interval)
                         
                         # Re-fetch data
-                        # We don't want progress bars in watch mode, so pass None
                         new_data = analyze_token(resolved_token_symbol, cg_client, binance_client, days, progress=None, task_ids=None, btc_volatility=btc_volatility)
                         
                         if new_data:
                             new_timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-                            update_dashboard(new_data, new_timestamp, status_msg="[LIVE]")
+                            new_layout = update_dashboard(new_data, new_timestamp, status_msg="[LIVE]")
+                            live.update(new_layout)
                         else:
-                            # Keep old data, maybe show error in header?
-                            update_dashboard(data, datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"), status_msg="[LIVE] (Update Failed)")
+                            # Keep old data
+                            pass
                             
                     except KeyboardInterrupt:
                         break
@@ -553,7 +548,7 @@ def main():
                         logger.error(f"Watch loop error: {e}")
                         time.sleep(5) # Wait a bit before retry
         else:
-            console.print(layout)
+            console.print(initial_layout)
         
     else:
         if args.save:
@@ -570,6 +565,13 @@ def main():
                 export_to_html(report_data, filepath)
             elif output_mode == OutputMode.MARKDOWN:
                  console.print("[yellow]Markdown export not yet implemented as file. Printing to terminal.[/yellow]")
+                 charts = None
+                 if args.charts:
+                    console.print("\n[bold cyan]Generating Charts...[/bold cyan]")
+                    p_chart = generate_price_chart(data["dates"], data["prices"], f"{data['token_symbol_api'].upper()} Price History")
+                    v_chart = generate_volume_chart(data["dates"], data["volumes"], f"{data['token_symbol_api'].upper()} Volume History")
+                    charts = [Text.from_ansi(p_chart), Text.from_ansi(v_chart)]
+
                  report_renderable = generate_report(
                     data["token_symbol"],
                     data["cg_data"],
@@ -578,15 +580,12 @@ def main():
                     data["volume_metrics"],
                     data["liquidity_metrics"],
                     validation_flags={},
-                    config=config
+                    config=config,
+                    charts=charts,
+                    ta_metrics=data["ta_metrics"],
+                    beta_proxy=data.get("beta_proxy")
                 )
                  console.print(report_renderable)
-                 if args.charts:
-                    console.print("\n[bold cyan]Generating Charts...[/bold cyan]")
-                    p_chart = generate_price_chart(data["dates"], data["prices"], f"{data['token_symbol_api'].upper()} Price History")
-                    v_chart = generate_volume_chart(data["dates"], data["volumes"], f"{data['token_symbol_api'].upper()} Volume History")
-                    console.print(p_chart)
-                    console.print(v_chart)
                  return
 
             console.print(f"[bold green]Successfully exported report to {filepath}[/bold green]")

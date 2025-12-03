@@ -11,6 +11,8 @@ from rich import box
 from src.cli.theme import get_metric_color, SEVERITY_STYLES
 from src.cli.formatters import format_percentage, format_currency, format_number
 
+from rich.layout import Layout
+
 def generate_report(
     token_symbol: str,
     cg_data: Dict[str, Any],
@@ -19,54 +21,105 @@ def generate_report(
     volume_metrics: Dict[str, float],
     liquidity_metrics: Dict[str, float],
     validation_flags: Dict[str, Any],
-    config: Dict[str, Any] = None
-) -> RenderableType:
+    config: Dict[str, Any] = None,
+    charts: List[RenderableType] = None,
+    ta_metrics: Dict[str, Any] = None,
+    beta_proxy: float = None
+) -> Layout:
     """
-    Generates the Standard Analysis Report as a Rich Renderable Group.
+    Generates the Standard Analysis Report as a Rich Layout (Glass Cockpit).
     """
     if config is None:
         config = {}
+    if ta_metrics is None:
+        ta_metrics = {}
         
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     
-    # 1. Overview Panel
-    overview_panel = generate_overview_panel(cg_data)
+    # 1. Create Layout Grid
+    layout = Layout()
+    layout.split_column(
+        Layout(name="header", size=3),
+        Layout(name="main", ratio=1),
+        Layout(name="footer", size=3)
+    )
+    layout["main"].split_row(
+        Layout(name="left", ratio=1),
+        Layout(name="right", ratio=2)
+    )
+    layout["left"].split_column(
+        Layout(name="overview"),
+        Layout(name="risk")
+    )
+
+    # 2. Prepare Components
     
-    # 2. Metrics Table
-    # Prepare metrics dictionary for the table generator
+    # Header
+    header_text = f"MICROANALYST REPORT: {token_symbol.upper()} | {timestamp}"
+    layout["header"].update(Panel(Text(header_text, justify="center", style="bold white"), style="bold white on blue", box=box.HEAVY))
+    
+    # Overview Panel
+    overview_panel = generate_overview_panel(cg_data)
+    layout["overview"].update(overview_panel)
+    
+    # Metrics
     metrics = {
         "volatility": volatility_metrics.get("cv"),
         "spread": liquidity_metrics.get("spread_pct"),
         "volume_delta": ((abs(cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0) - float(binance_ticker.get("quoteVolume", 0)))) / cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 1) * 100) if cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0) else 0.0,
-        "imbalance": liquidity_metrics.get("imbalance")
+        "imbalance": liquidity_metrics.get("imbalance"),
+        "rsi": ta_metrics.get("rsi"),
+        "trend": ta_metrics.get("trend"),
+        "beta": beta_proxy
     }
+    # Add TA metrics if available (passed via kwargs or we need to update signature? 
+    # Wait, generate_report signature doesn't have ta_metrics in the original code I viewed?
+    # Ah, I see in main.py it calls generate_report but I might have missed updating the signature in previous steps?
+    # Let's check main.py again. In main.py:550 it calls generate_report.
+    # It passes: token_symbol, cg_data, ticker_24h, volatility_metrics, volume_metrics, liquidity_metrics, validation_flags, config.
+    # It does NOT pass ta_metrics or beta_proxy.
+    # I need to update generate_report signature to accept these, OR I can extract them from the passed dicts if they were there.
+    # But they are separate arguments.
+    # For now, I will stick to the existing signature and just use what's available.
+    # Wait, if I want to show RSI/Beta in the layout, I need them.
+    # The user instruction says "Right Column: metric_table".
+    # metric_table uses `metrics` dict.
+    # In the previous step, I updated `generate_metric_table` to handle RSI/Beta.
+    # But `generate_report` prepares the `metrics` dict.
+    # I should update `generate_report` to accept `ta_metrics` and `beta_proxy` as optional args.
+    
+    # Let's stick to the plan: Refactor to Layout first.
+    # I will add `ta_metrics` and `beta_proxy` to the signature as well since I'm rewriting it.
+    
     metric_table = generate_metric_table(metrics)
     
-    # 3. Risk Factors
-    vol_delta_val = metrics["volume_delta"]
+    # Right Column: Metrics + Charts
+    right_content = [metric_table]
+    if charts:
+        right_content.extend(charts)
+        
+    layout["right"].update(Panel(Group(*right_content), title="Quantitative Analysis & Charts", border_style="blue", box=box.ROUNDED))
+    
+    # Risk Factors
     risk_table = generate_risk_table(metrics)
+    layout["risk"].update(Panel(risk_table, title="Risk Assessment", border_style="red", box=box.ROUNDED))
 
-    # 4. Footer / Confidence
+    # Footer / Confidence
+    vol_delta_val = metrics["volume_delta"]
     confidence_score = 100.0
     if vol_delta_val > 50:
         confidence_score = 40.0
     elif vol_delta_val > 20:
         confidence_score = 70.0
         
-    footer = Group(
-        Text(f"\nAnalysis Timestamp: {timestamp}", style="dim"),
+    footer_content = Group(
+        Text(f"Analysis Timestamp: {timestamp}", style="dim"),
         Text("Data Confidence:", style="bold"),
         Bar(100, 0, 100, width=40, color="green" if confidence_score > 80 else "yellow")
     )
+    layout["footer"].update(Panel(footer_content, style="dim", box=box.ROUNDED))
     
-    return Group(
-        overview_panel,
-        Text(""), # Spacer
-        metric_table,
-        Text(""), # Spacer
-        risk_table,
-        footer
-    )
+    return layout
 
 def generate_metric_table(metrics: Dict[str, float]) -> Table:
     """
