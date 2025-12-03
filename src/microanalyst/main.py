@@ -64,7 +64,7 @@ class OutputMode(str, Enum):
     HTML = "html"
     MARKDOWN = "markdown"
 
-def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client: BinanceClient, days: int, progress=None, task_ids=None) -> Dict[str, Any]:
+def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client: BinanceClient, days: int, progress=None, task_ids=None, btc_volatility: Optional[float] = None) -> Dict[str, Any]:
     """
     Analyzes a single token and returns all relevant data and metrics.
     """
@@ -149,6 +149,10 @@ def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client:
     cg_vol = cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0)
     bin_vol = float(ticker_24h.get("quoteVolume", 0))
     vol_delta = ((abs(cg_vol - bin_vol)) / cg_vol * 100) if cg_vol else 0.0
+
+    beta_proxy = None
+    if btc_volatility and volatility_metrics.get("cv"):
+        beta_proxy = volatility_metrics["cv"] / btc_volatility
     
     if progress and task_ids:
         progress.update(task_ids["analysis"], advance=1)
@@ -163,6 +167,7 @@ def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client:
         "liquidity_metrics": liquidity_metrics,
         "ta_metrics": ta_metrics,
         "vol_delta": vol_delta,
+        "beta_proxy": beta_proxy,
         # Flattened metrics for comparison
         "volatility": volatility_metrics.get("cv"),
         "spread": liquidity_metrics.get("spread_pct"),
@@ -216,6 +221,20 @@ def main():
     cg_client = CoinGeckoClient()
     binance_client = BinanceClient()
 
+    # Fetch BTC Baseline for Benchmarking
+    btc_volatility = None
+    try:
+        if not args.compare: # Only needed for single token analysis primarily, but good for compare too?
+             # Let's fetch it always, it's cached usually.
+             console.print("[dim]Fetching Bitcoin baseline...[/dim]")
+             btc_chart = cg_client.get_market_chart("bitcoin", days=days)
+             if btc_chart and btc_chart.get("prices"):
+                 btc_prices = [p[1] for p in btc_chart["prices"]]
+                 btc_metrics = calculate_volatility_metrics(btc_prices)
+                 btc_volatility = btc_metrics.get("cv")
+    except Exception as e:
+        logger.warning(f"Failed to fetch BTC baseline: {e}")
+
     # --- COMPARISON MODE ---
     if args.compare:
         tokens = [t.strip() for t in args.compare.split(",") if t.strip()]
@@ -243,7 +262,7 @@ def main():
             }
             
             for token in tokens:
-                data = analyze_token(token, cg_client, binance_client, days, progress, task_ids)
+                data = analyze_token(token, cg_client, binance_client, days, progress, task_ids, btc_volatility)
                 if data:
                     data["symbol"] = data["token_symbol_api"].upper()
                     results.append(data)
@@ -335,7 +354,7 @@ def main():
             "analysis": task_analysis
         }
         
-        data = analyze_token(resolved_token_symbol, cg_client, binance_client, days, progress, task_ids)
+        data = analyze_token(resolved_token_symbol, cg_client, binance_client, days, progress, task_ids, btc_volatility)
         
     if not data:
         console.print(generate_error_panel(
@@ -371,7 +390,8 @@ def main():
         "volume_delta": data["volume_delta"],
         "imbalance": data["imbalance"],
         "rsi": data["ta_metrics"].get("rsi"),
-        "trend": data["ta_metrics"].get("trend")
+        "trend": data["ta_metrics"].get("trend"),
+        "beta": data.get("beta_proxy")
     }
     
     metric_labels = {
@@ -380,7 +400,8 @@ def main():
         "volume_delta": "Volume Delta",
         "imbalance": "Imbalance",
         "rsi": "RSI (14D)",
-        "trend": "Trend (20/50)"
+        "trend": "Trend (20/50)",
+        "beta": "Beta (vs BTC)"
     }
     
     for key, val in raw_metrics.items():
@@ -402,6 +423,7 @@ def main():
             elif key == "imbalance": fmt_val = format_number(val, 2)
             elif key == "rsi": fmt_val = format_number(val, 1)
             elif key == "trend": fmt_val = str(val)
+            elif key == "beta": fmt_val = format_number(val, 2)
 
             report_data["metrics"].append({
                 "name": metric_labels.get(key, key),
@@ -460,7 +482,8 @@ def main():
                 "volume_delta": data["volume_delta"],
                 "imbalance": data["imbalance"],
                 "rsi": data["ta_metrics"].get("rsi"),
-                "trend": data["ta_metrics"].get("trend")
+                "trend": data["ta_metrics"].get("trend"),
+                "beta": data.get("beta_proxy")
             }
             metric_table = generate_metric_table(raw_metrics)
             risk_table = generate_risk_table(raw_metrics)
@@ -515,7 +538,7 @@ def main():
                         
                         # Re-fetch data
                         # We don't want progress bars in watch mode, so pass None
-                        new_data = analyze_token(resolved_token_symbol, cg_client, binance_client, days, progress=None, task_ids=None)
+                        new_data = analyze_token(resolved_token_symbol, cg_client, binance_client, days, progress=None, task_ids=None, btc_volatility=btc_volatility)
                         
                         if new_data:
                             new_timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")

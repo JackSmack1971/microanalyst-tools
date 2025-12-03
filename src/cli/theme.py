@@ -32,6 +32,10 @@ METRIC_THRESHOLDS: Dict[str, Dict[str, float]] = {
     "rsi": {
         "overbought": 70.0,
         "oversold": 30.0
+    },
+    "beta": {
+        "high": 1.5,   # > 1.5 is high risk
+        "low": 0.8     # < 0.8 is defensive
     }
 }
 
@@ -113,6 +117,14 @@ def get_metric_color(metric_type: str, value: Union[float, str]) -> str:
             return SEVERITY_STYLES["critical"]
         else:
             return SEVERITY_STYLES["neutral"]
+
+    elif metric_type == "beta":
+        if value > thresholds["high"]:
+            return SEVERITY_STYLES["critical"] # High risk
+        elif value < thresholds["low"]:
+            return SEVERITY_STYLES["healthy"] # Defensive
+        else:
+            return SEVERITY_STYLES["neutral"] # Correlated
 
     return SEVERITY_STYLES["neutral"]
 
