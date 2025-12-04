@@ -10,6 +10,11 @@ from src.microanalyst.analysis.metrics import (
     calculate_liquidity_metrics,
     calculate_technical_indicators
 )
+from src.microanalyst.analysis.advanced_metrics import (
+    calculate_risk_metrics,
+    calculate_macd,
+    calculate_fibonacci_levels
+)
 
 logger = logging.getLogger("microanalyst")
 
@@ -105,6 +110,11 @@ class TokenAnalyzer:
         liquidity_metrics = calculate_liquidity_metrics(depth)
         ta_metrics = calculate_technical_indicators(prices)
         
+        # Advanced Metrics
+        risk_metrics = calculate_risk_metrics(prices)
+        macd_metrics = calculate_macd(prices)
+        fib_levels = calculate_fibonacci_levels(prices)
+        
         # Calculate derived values
         cg_vol = cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0)
         bin_vol = float(ticker_24h.get("quoteVolume", 0))
@@ -126,6 +136,11 @@ class TokenAnalyzer:
             "volume_metrics": volume_metrics,
             "liquidity_metrics": liquidity_metrics,
             "ta_metrics": ta_metrics,
+            "risk_metrics": risk_metrics,
+            "advanced_ta": {
+                "macd": macd_metrics,
+                "fibonacci": fib_levels
+            },
             "vol_delta": vol_delta,
             "beta_proxy": beta_proxy,
             # Flattened metrics for comparison

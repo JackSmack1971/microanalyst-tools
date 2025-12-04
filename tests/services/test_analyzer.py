@@ -37,6 +37,10 @@ def test_analyzer_analyze_flow():
     assert result is not None
     assert result["token_symbol"] == "eth"
     assert result["token_symbol_api"] == "eth"
+    assert "risk_metrics" in result
+    assert "advanced_ta" in result
+    assert "macd" in result["advanced_ta"]
+    assert "fibonacci" in result["advanced_ta"]
     
     # Verify callback calls
     # Should be called for search, market, orderbook, analysis
