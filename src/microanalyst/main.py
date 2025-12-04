@@ -64,120 +64,25 @@ class OutputMode(str, Enum):
     HTML = "html"
     MARKDOWN = "markdown"
 
+from src.microanalyst.services.analyzer import TokenAnalyzer
+
 def analyze_token(token_symbol: str, cg_client: CoinGeckoClient, binance_client: BinanceClient, days: int, progress=None, task_ids=None, btc_volatility: Optional[float] = None) -> Dict[str, Any]:
     """
     Analyzes a single token and returns all relevant data and metrics.
+    Wraps TokenAnalyzer to maintain CLI compatibility.
     """
-    # Search
-    if progress and task_ids:
-        progress.update(task_ids["search"], advance=0, description=f"Searching {token_symbol}...")
-        
-    try:
-        search_results = cg_client.search(token_symbol)
-    except Exception as e:
-        logger.error(f"Search failed for {token_symbol}: {e}")
-        return None
+    analyzer = TokenAnalyzer(cg_client, binance_client)
     
-    if not search_results or not search_results.get("coins"):
-        logger.error(f"Token {token_symbol} not found.")
-        return None
-    
-    # Default behavior: pick first
-    token_id = search_results["coins"][0]["id"]
-    token_symbol_api = search_results["coins"][0]["symbol"]
-    
-    if progress and task_ids:
-        progress.update(task_ids["search"], advance=1)
-        progress.update(task_ids["market"], advance=0, description=f"Fetching data for {token_symbol_api}...")
+    def progress_callback(step: str, description: Optional[str]):
+        if progress and task_ids:
+            task_id = task_ids.get(step)
+            if task_id is not None:
+                if description:
+                    progress.update(task_id, description=description)
+                else:
+                    progress.update(task_id, advance=1)
 
-    # Fetch Market Data
-    try:
-        cg_data = cg_client.get_token_data(token_id)
-        market_chart = cg_client.get_market_chart(token_id, days=days)
-        
-        # Check for cache hit
-        is_cached = cg_data.get("_from_cache", False) or market_chart.get("_from_cache", False)
-        
-        # Clean up cache flags
-        if cg_data: cg_data.pop("_from_cache", None)
-        if market_chart: market_chart.pop("_from_cache", None)
-            
-    except Exception as e:
-        logger.error(f"Data fetch failed for {token_id}: {e}")
-        return None
-    
-    if not cg_data or not market_chart:
-        return None
-        
-    if progress and task_ids:
-        progress.update(task_ids["market"], advance=1)
-        desc = f"Fetching orderbook for {token_symbol_api}..."
-        if is_cached:
-            desc += " [green](Cached)[/green]"
-        progress.update(task_ids["orderbook"], advance=0, description=desc)
-
-    # Binance Data
-    binance_symbol = f"{token_symbol_api.upper()}USDT"
-    ticker_24h = binance_client.get_ticker_24h(binance_symbol)
-    depth = binance_client.get_depth(binance_symbol)
-    
-    if not ticker_24h:
-        ticker_24h = {}
-        depth = {"bids": [], "asks": []}
-        
-    if progress and task_ids:
-        progress.update(task_ids["orderbook"], advance=1)
-        progress.update(task_ids["analysis"], advance=0, description=f"Analyzing {token_symbol_api}...")
-
-    # Analyze
-    prices_data = market_chart.get("prices", [])
-    volumes_data = market_chart.get("total_volumes", [])
-    
-    prices = [p[1] for p in prices_data]
-    volumes = [v[1] for v in volumes_data]
-    
-    # Extract dates for charts (convert ms timestamp to datetime string)
-    # CoinGecko timestamps are in ms
-    dates = [datetime.fromtimestamp(p[0]/1000).strftime("%Y-%m-%d") for p in prices_data]
-    
-    volatility_metrics = calculate_volatility_metrics(prices)
-    volume_metrics = calculate_volume_metrics(prices, volumes)
-    liquidity_metrics = calculate_liquidity_metrics(depth)
-    ta_metrics = calculate_technical_indicators(prices)
-    
-    # Calculate derived values
-    cg_vol = cg_data.get("market_data", {}).get("total_volume", {}).get("usd", 0)
-    bin_vol = float(ticker_24h.get("quoteVolume", 0))
-    vol_delta = ((abs(cg_vol - bin_vol)) / cg_vol * 100) if cg_vol else 0.0
-
-    beta_proxy = None
-    if btc_volatility and volatility_metrics.get("cv"):
-        beta_proxy = volatility_metrics["cv"] / btc_volatility
-    
-    if progress and task_ids:
-        progress.update(task_ids["analysis"], advance=1)
-
-    return {
-        "token_symbol": token_symbol,
-        "token_symbol_api": token_symbol_api,
-        "cg_data": cg_data,
-        "ticker_24h": ticker_24h,
-        "volatility_metrics": volatility_metrics,
-        "volume_metrics": volume_metrics,
-        "liquidity_metrics": liquidity_metrics,
-        "ta_metrics": ta_metrics,
-        "vol_delta": vol_delta,
-        "beta_proxy": beta_proxy,
-        # Flattened metrics for comparison
-        "volatility": volatility_metrics.get("cv"),
-        "spread": liquidity_metrics.get("spread_pct"),
-        "volume_delta": vol_delta,
-        "imbalance": liquidity_metrics.get("imbalance"),
-        # Chart data
-        "dates": dates,
-        "prices": prices,
-        "volumes": volumes
-    }
+    return analyzer.analyze(token_symbol, days, btc_volatility, progress_callback)
 
 def main():
     parser = argparse.ArgumentParser(description="Elite Cryptocurrency Microanalyst Tool")
