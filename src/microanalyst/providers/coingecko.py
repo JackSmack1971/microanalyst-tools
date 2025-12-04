@@ -135,3 +135,23 @@ class CoinGeckoClient:
             cache.set(cache_key, data, expire=60)
             
         return data
+    def search(self, query: str) -> Optional[Dict[str, Any]]:
+        """
+        Search for coins, categories and markets listed on CoinGecko.
+        Endpoint: /search
+        """
+        # Cache search results for a bit
+        cache = get_cache()
+        cache_key = f"coingecko:search:{query}"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data:
+            return cached_data
+
+        params = {"query": query}
+        data = self._request("search", params=params)
+        
+        if data:
+            cache.set(cache_key, data, expire=300)
+            
+        return data
