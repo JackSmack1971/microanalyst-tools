@@ -24,7 +24,9 @@ def generate_report(
     config: Dict[str, Any] = None,
     charts: List[RenderableType] = None,
     ta_metrics: Dict[str, Any] = None,
-    beta_proxy: float = None
+    beta_proxy: float = None,
+    risk_metrics: Dict[str, float] = None,
+    advanced_ta: Dict[str, Any] = None
 ) -> Layout:
     """
     Generates the Standard Analysis Report as a Rich Layout (Glass Cockpit).
@@ -49,7 +51,8 @@ def generate_report(
     )
     layout["left"].split_column(
         Layout(name="overview"),
-        Layout(name="risk")
+        Layout(name="risk"),
+        Layout(name="advanced")
     )
 
     # 2. Prepare Components
@@ -103,6 +106,13 @@ def generate_report(
     # Risk Factors
     risk_table = generate_risk_table(metrics)
     layout["risk"].update(Panel(risk_table, title="Risk Assessment", border_style="red", box=box.ROUNDED))
+
+    # Advanced Analytics
+    if risk_metrics and advanced_ta:
+        advanced_panel = generate_advanced_panel(risk_metrics, advanced_ta)
+        layout["advanced"].update(advanced_panel)
+    else:
+        layout["advanced"].update(Panel(Text("Insufficient data for advanced analytics"), title="Advanced Analytics", border_style="magenta"))
 
     # Footer / Confidence
     vol_delta_val = metrics["volume_delta"]
@@ -315,3 +325,54 @@ def generate_risk_table(metrics: Dict[str, float]) -> Table:
         table.add_row("[green]No critical risks detected[/green]", "-")
         
     return table
+
+def generate_advanced_panel(risk_metrics: Dict[str, float], advanced_ta: Dict[str, Any]) -> Panel:
+    """
+    Generates the Advanced Analytics panel.
+    """
+    # Risk Metrics Table
+    risk_table = Table(title="Risk Profile", box=box.SIMPLE, show_header=False)
+    risk_table.add_column("Metric", style="cyan")
+    risk_table.add_column("Value", justify="right")
+    
+    mdd = risk_metrics.get("max_drawdown")
+    sharpe = risk_metrics.get("sharpe_ratio")
+    sortino = risk_metrics.get("sortino_ratio")
+    
+    risk_table.add_row("Max Drawdown", f"[red]{format_percentage(mdd, 2)}[/red]" if mdd is not None else "-")
+    risk_table.add_row("Sharpe Ratio", f"[green]{format_number(sharpe, 2)}[/green]" if sharpe and sharpe > 0 else f"[red]{format_number(sharpe, 2)}[/red]" if sharpe else "-")
+    risk_table.add_row("Sortino Ratio", f"[green]{format_number(sortino, 2)}[/green]" if sortino and sortino > 0 else f"[red]{format_number(sortino, 2)}[/red]" if sortino else "-")
+
+    # Fibonacci Table
+    fib = advanced_ta.get("fibonacci", {})
+    fib_table = Table(title="Key Levels (Fib)", box=box.SIMPLE, show_header=False)
+    fib_table.add_column("Level", style="magenta")
+    fib_table.add_column("Price", justify="right")
+    
+    if fib:
+        fib_table.add_row("0.236", format_currency(fib.get("fib_0.236")))
+        fib_table.add_row("0.382", format_currency(fib.get("fib_0.382")))
+        fib_table.add_row("0.500", format_currency(fib.get("fib_0.500")))
+        fib_table.add_row("0.618", format_currency(fib.get("fib_0.618")))
+    
+    # MACD Info
+    macd = advanced_ta.get("macd", {})
+    macd_text = Text()
+    if macd:
+        macd_val = macd.get("macd_line")
+        sig_val = macd.get("signal_line")
+        hist_val = macd.get("histogram")
+        
+        macd_text.append(f"\nMACD: ", style="bold")
+        macd_text.append(f"{format_number(macd_val, 2)}", style="cyan")
+        macd_text.append(f" | Signal: ", style="bold")
+        macd_text.append(f"{format_number(sig_val, 2)}", style="yellow")
+        macd_text.append(f" | Hist: ", style="bold")
+        macd_text.append(f"{format_number(hist_val, 2)}", style="green" if hist_val and hist_val > 0 else "red")
+
+    content = Group(
+        Columns([risk_table, fib_table]),
+        macd_text
+    )
+    
+    return Panel(content, title="Advanced Analytics", border_style="magenta", box=box.ROUNDED)

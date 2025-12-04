@@ -52,3 +52,4 @@ def test_generate_report_returns_layout():
     left_children_names = [child.name for child in left_layout.children]
     assert "overview" in left_children_names
     assert "risk" in left_children_names
+    assert "advanced" in left_children_names

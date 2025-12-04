@@ -398,7 +398,9 @@ def main():
                 config=config,
                 charts=charts,
                 ta_metrics=data["ta_metrics"],
-                beta_proxy=data.get("beta_proxy")
+                beta_proxy=data.get("beta_proxy"),
+                risk_metrics=data.get("risk_metrics"),
+                advanced_ta=data.get("advanced_ta")
             )
             
             # If status_msg, we might want to append it to the header?
@@ -488,7 +490,9 @@ def main():
                     config=config,
                     charts=charts,
                     ta_metrics=data["ta_metrics"],
-                    beta_proxy=data.get("beta_proxy")
+                    beta_proxy=data.get("beta_proxy"),
+                    risk_metrics=data.get("risk_metrics"),
+                    advanced_ta=data.get("advanced_ta")
                 )
                  console.print(report_renderable)
                  return
